@@ -178,4 +178,4 @@ Vercel Hobby runs the web app (region `sin1`, close to Dhaka and to the database
 - Serverless functions open many short-lived connections, so the web app uses Neon's pooled address and a small pool (`DB_POOL_MAX=3`). The worker and the pg-boss sender use the direct address, because pg-boss needs session-level features that a transaction pooler does not give.
 - `scripts/prepare-deploy-env.sh` builds the variable lists for both dashboards from local files and prints only names. The values are pasted by hand into the dashboards; no tool or script sends them anywhere.
 - Render's Node image has a read-only `/usr/bin`, so `corepack enable` fails there. The build command runs pnpm through `npx -y pnpm@11.19.0` instead.
-
+- Migrations are run by hand against Neon (`pnpm db:migrate` with the direct address) and are not part of the Vercel build, so a deploy cannot change the database by surprise. The first live chat question failed with `relation "query_embeddings" does not exist` because 0005 and 0006 had not been applied yet; the fix was to run the migration, and the README step now says to repeat it after every schema change.

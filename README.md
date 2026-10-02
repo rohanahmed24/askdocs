@@ -66,7 +66,7 @@ Web app on Vercel, Postgres on Neon, worker on a Render free web service. The wo
 
 Deploy steps:
 
-1. Neon: create the database, run `pnpm db:migrate` against the direct (unpooled) address.
+1. Neon: create the database, run `pnpm db:migrate` against the direct (unpooled) address. Run it again after every schema change, before the new code goes live (a missing migration shows up as a failed chat question).
 2. Render: new web service from this repo, free plan, Singapore. Build command `npx -y pnpm@11.19.0 install --frozen-lockfile --prod=false`, start command `./node_modules/.bin/tsx worker/index.ts`, health check path `/health`, `NODE_VERSION=24`. Environment: `DATABASE_URL_DIRECT`, `OPENROUTER_API_KEY`.
 3. Vercel: import the repo (region `sin1` and the daily cron come from `vercel.json`). Environment: `DATABASE_URL` (Neon pooled address), `DB_POOL_MAX=3`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `OPENROUTER_API_KEY`, `WORKER_URL`, `CRON_SECRET`.
 4. `bash scripts/prepare-deploy-env.sh --web-url <url> --worker-url <url>` writes both lists to gitignored files (`.env.vercel`, `.env.render`) for pasting into the dashboards. Delete them afterwards.
