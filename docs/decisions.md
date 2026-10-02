@@ -87,3 +87,9 @@ The plan was for the project owner to write these three pieces by hand and for C
 ## 17. Chunker: split at boundaries, never inside a character
 
 Chunks are about 1000 characters with 150 overlap, split at a paragraph, then a sentence, then a word. A split in the middle of a character (an emoji, or a Bengali consonant with its vowel sign) would store a broken string and embed garbage, so cuts are moved to a grapheme boundary. Sizes are counted in UTF-16 code units, not bytes or tokens: simple, and close enough for an embedding model with a large input window.
+
+## 18. Hosting: Neon in Singapore, web on Vercel, worker on Render
+
+- **Database:** one Neon project (`askdocs`, Postgres 17, AWS Singapore). Singapore is the closest region to Bangladesh and has a Render region next to it, so the worker and the database share a region. The web app uses the pooled connection string (`DATABASE_URL`); migrations and the worker use the direct one (`DATABASE_URL_DIRECT`), because pg-boss needs advisory locks that a pooler breaks. Connection strings live in the gitignored `.env.neon`.
+- **Migrations** ran against Neon with `pnpm db:migrate`, including the `vector` extension and the HNSW index.
+- **Worker host:** Render has no free always-on background worker, and a free web service sleeps when idle, which would stop pg-boss from taking jobs. Options before the deploy: a paid always-on instance, or the Vercel Cron fallback from the roadmap (a route that drains the queue in small batches). Decide on deploy day and record the choice here.
