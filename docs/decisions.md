@@ -44,6 +44,14 @@ Locally both are the same Docker database, and `DATABASE_URL_DIRECT` stays empty
 
 The first version retrieves with vectors only. Postgres full-text search is merged in during the hardening phase, after an evaluation script exists, so the README can show the hit rate before and after.
 
-## 9. Auth tables are hand-copied for now
+## 9. Auth: Better Auth with email and password
 
-`src/db/auth-schema.ts` follows the Better Auth Drizzle adapter. When auth is wired up, regenerate with the Better Auth CLI and diff against it.
+Better Auth stores users, sessions and accounts in Postgres through its Drizzle adapter, so sessions are database-backed and can be revoked. The tables live in `src/db/auth-schema.ts`.
+
+`src/proxy.ts` only checks that a session cookie exists and redirects to sign-in if not. That is a fast first gate, not a security check. Every protected page re-checks the session on the server (`requireOrg` in `src/server/current-org.ts`), because a cookie can be present and expired or forged.
+
+## 10. One organization per account, for now
+
+Sign-up leads to an onboarding step that creates an organization. The organization and the owner membership are inserted in one transaction, so an organization never exists without an owner (a test forces the second insert to fail and checks nothing is left behind). Slugs are made unique with a short random suffix when the name is taken.
+
+The data model already supports many organizations per user. Only the UI is limited, until an organization switcher is built.

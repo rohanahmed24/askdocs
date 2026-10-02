@@ -9,7 +9,8 @@ Work in progress. The full write-up (architecture diagram, trade-offs, how AI wa
 - Next.js (App Router) and TypeScript
 - Postgres with pgvector, Drizzle ORM
 - Docker Compose for local development, GitHub Actions for CI
-- Planned: Better Auth, pg-boss worker, Gemini embeddings and chat, Playwright
+- Better Auth (email and password), Zod
+- Planned: pg-boss worker, Gemini embeddings and chat, Playwright
 
 ## Run it locally
 
@@ -17,7 +18,7 @@ Requires Node 24, pnpm and Docker.
 
 ```bash
 pnpm install
-cp .env.example .env
+cp .env.example .env   # then set BETTER_AUTH_SECRET: openssl rand -base64 32
 pnpm db:up        # Postgres + pgvector on localhost:5433
 pnpm db:migrate   # apply migrations
 pnpm dev
