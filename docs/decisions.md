@@ -92,4 +92,16 @@ Chunks are about 1000 characters with 150 overlap, split at a paragraph, then a 
 
 - **Database:** one Neon project (`askdocs`, Postgres 17, AWS Singapore). Singapore is the closest region to Bangladesh and has a Render region next to it, so the worker and the database share a region. The web app uses the pooled connection string (`DATABASE_URL`); migrations and the worker use the direct one (`DATABASE_URL_DIRECT`), because pg-boss needs advisory locks that a pooler breaks. Connection strings live in the gitignored `.env.neon`.
 - **Migrations** ran against Neon with `pnpm db:migrate`, including the `vector` extension and the HNSW index.
-- **Worker host:** Render has no free always-on background worker, and a free web service sleeps when idle, which would stop pg-boss from taking jobs. Options before the deploy: a paid always-on instance, or the Vercel Cron fallback from the roadmap (a route that drains the queue in small batches). Decide on deploy day and record the choice here.
+- **Worker host:** a Render free web service that sleeps when idle. See #19.
+
+## 19. The worker sleeps and the web app wakes it
+
+Render has no free always-on background worker, and a free web service sleeps after 15 minutes without inbound traffic and takes about a minute to start. Instead of paying, the worker is a web service that also runs the queue consumer, and the web app wakes it:
+
+- The worker answers `GET /health` (`src/server/health.ts`). A request to it starts a sleeping host.
+- After an upload, the upload route pings the worker (`after(() => wakeWorker())`). Jobs are stored in Postgres, so nothing is lost while the worker starts; it takes the job when it is up.
+- `GET /api/documents` (the status polling endpoint) pings the worker again if a document has been `queued` or `processing` for over a minute. That covers a ping that did not work, and retries that were due while the worker slept.
+- Vercel Hobby only allows a cron once a day, so one daily cron (`/api/cron/daily`, secured with `CRON_SECRET`) queues the nightly cleanup and wakes the worker. The worker no longer has its own `boss.schedule`, because a sleeping process cannot run one.
+- Pings from one web instance are at least a minute apart.
+
+Trade-offs: the first document after an idle period waits about a minute in `queued`; the 750 free instance hours are shared with every other free service in the Render workspace (the existing n8n service counts); the cleanup depends on Vercel Cron. If the project outgrows this, run the same worker on an always-on instance. Nothing in the code has to change except removing the ping.

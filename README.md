@@ -44,7 +44,11 @@ pnpm dev
 | `pnpm db:up` / `pnpm db:down` | Start or stop the local database |
 | `pnpm db:generate` | Create a migration from changes in `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations |
-| `pnpm worker` | Run the ingestion worker (needs `GEMINI_API_KEY`) |
+| `pnpm worker` | Run the ingestion worker (needs `GEMINI_API_KEY`). Also serves `GET /health` on `PORT` (default 8080) |
+
+## Hosting
+
+Web app on Vercel, Postgres on Neon, worker on a Render free web service. The worker sleeps when idle; the web app pings its `/health` after an upload, while a document waits, and once a day from Vercel Cron. Set `WORKER_URL` and `CRON_SECRET` on the web app (see `.env.example`). Details and trade-offs: `docs/decisions.md` #18 and #19.
 
 ## Where things are
 
