@@ -1,11 +1,11 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { EMBEDDING_DIMENSIONS, chunks, documents, memberships, messages } from "./schema";
+import { EMBEDDING_DIMENSIONS, chunks, documentFiles, documents, memberships, messages } from "./schema";
 
 describe("schema invariants", () => {
   it("scopes every tenant table by a non-null org_id", () => {
-    for (const table of [memberships, documents, chunks, messages]) {
+    for (const table of [memberships, documents, documentFiles, chunks, messages]) {
       const col = getTableColumns(table).orgId;
       expect(col, getTableConfig(table).name).toBeDefined();
       expect(col.name).toBe("org_id");

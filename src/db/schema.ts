@@ -1,5 +1,6 @@
 import {
   bigint,
+  customType,
   index,
   integer,
   jsonb,
@@ -85,6 +86,31 @@ export const documents = pgTable(
       .notNull(),
   },
   (t) => [index("documents_org_created_idx").on(t.orgId, t.createdAt), index("documents_org_status_idx").on(t.orgId, t.status)],
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+/**
+ * The uploaded bytes, one row per document. Kept out of `documents` so listing
+ * documents never reads file contents. Stored in Postgres so the web app and
+ * the worker (separate hosts) share files without extra infrastructure.
+ */
+export const documentFiles = pgTable(
+  "document_files",
+  {
+    documentId: uuid("document_id")
+      .primaryKey()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    data: bytea("data").notNull(),
+  },
+  (t) => [index("document_files_org_idx").on(t.orgId)],
 );
 
 export const chunks = pgTable(
