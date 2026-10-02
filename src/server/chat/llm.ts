@@ -1,7 +1,6 @@
-import { assertFreeModel } from "../embeddings";
+import { assertFreeModel, openRouterBaseUrl } from "../embeddings";
 import type { ChatMessage } from "./prompt";
 
-export const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /**
  * Free chat models, best first. They are tried in this order for each request
@@ -71,7 +70,7 @@ export function createOpenRouterChat(options: OpenRouterChatOptions): ChatStream
 
   return async function* stream({ messages, signal }) {
     const timeout = AbortSignal.timeout(timeoutMs);
-    const response = await doFetch(OPENROUTER_CHAT_URL, {
+    const response = await doFetch(`${openRouterBaseUrl()}/chat/completions`, {
       method: "POST",
       headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json", "x-title": "AskDocs" },
       body: JSON.stringify({

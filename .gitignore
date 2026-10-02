@@ -45,3 +45,7 @@ next-env.d.ts
 
 # Cached embeddings of the evaluation texts (rebuilt by pnpm eval)
 eval/.embedding-cache.json
+
+# Playwright
+test-results/
+playwright-report/

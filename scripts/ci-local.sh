@@ -56,7 +56,11 @@ step "migrations apply to a clean database" pnpm db:migrate
 step "test" pnpm test
 tests="$(grep -E '^ +Tests ' "$log" | head -1 | sed 's/^ *//')"
 step "build" pnpm build
+# The end-to-end tests start their own servers and use their own database, askdocs_e2e, in the same container.
+step "end-to-end tests" pnpm test:e2e
+e2e="$(grep -E '[0-9]+ passed' "$log" | head -1 | sed 's/^ *//')"
 
 echo
 echo "CI passed locally for: $commit"
 echo "$tests"
+echo "End-to-end: $e2e"

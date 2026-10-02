@@ -159,3 +159,13 @@ Search by meaning (the embedding model) is the main path. Full-text search is ad
 Why: Postgres full-text ranking does not know how rare a word is, so it favours passages that repeat common words. Searching on every word made results worse in the evaluation (`hybrid-all`, 12 of 14 first-place hits against 13 for meaning alone) and broke a cross-language question. Restricting keywords to numbers and identifiers, which are rare and exact, gave 14 of 14. The numbers, the small size of the set and the way the change was chosen are in `docs/evaluation.md`.
 
 The keyword index is a GIN index on `to_tsvector('simple', translate(content, '-_', '  '))`: `simple` keeps words as they are, so it works for Bengali too, and hyphens count as spaces so `E-4021` is found by `4021`. `RETRIEVAL_MODE=vector` switches the chat back to meaning alone.
+
+## 25. End-to-end tests use a stand-in AI service
+
+`pnpm test:e2e` runs four Playwright tests in a real browser against the built app and the real worker, on a separate database (`askdocs_e2e`): sign up, upload and indexing without a reload, an answer with a citation, the no-answer sentence without a model call, a second organization that sees nothing and gets nothing, and delete.
+
+The AI service is `e2e/fake-openrouter.mjs`, a small local server that speaks the two OpenRouter endpoints the app uses. Its embeddings hash the words of a text, so texts that share words are close; its answers quote the best matching passage and cite it. The app is pointed at it with `OPENROUTER_BASE_URL`, with a fake key, so the tests cost none of the 50 free requests a day, give the same result every time, and a real key in `.env` can never reach the real service from a test. The stand-in counts its calls, which lets a test prove that the model was not called (no close passage, and another organization's question).
+
+The tenant isolation test was checked by removing the organization filter from the search on purpose: the test failed, as it should. What these tests do not check is the quality of real answers; the retrieval evaluation (`docs/evaluation.md`) and manual checks with the real models cover that.
+
+The browser is Playwright's Chromium. Locally it is reused if already installed; CI installs it.

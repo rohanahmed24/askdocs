@@ -3,7 +3,14 @@ import { EMBEDDING_DIMENSIONS } from "@/db/schema";
 /** Turns texts into vectors. Same order in, same order out. */
 export type Embedder = (texts: string[]) => Promise<number[][]>;
 
-export const OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings";
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+/** `OPENROUTER_BASE_URL` can point at a stand-in server. The end-to-end tests use that, so they cost no free requests. */
+export function openRouterBaseUrl(): string {
+  return (process.env.OPENROUTER_BASE_URL || OPENROUTER_BASE_URL).replace(/\/+$/, "");
+}
+
+export const OPENROUTER_EMBEDDINGS_URL = `${OPENROUTER_BASE_URL}/embeddings`;
 
 /** A free model: no cost per token. Check the current list at https://openrouter.ai/api/v1/embeddings/models */
 export const DEFAULT_EMBEDDING_MODEL = "nvidia/nemotron-3-embed-1b:free";
@@ -52,7 +59,7 @@ export function createOpenRouterEmbedder(options: OpenRouterEmbedderOptions): Em
   return async (texts) => {
     if (texts.length === 0) return [];
 
-    const response = await doFetch(OPENROUTER_EMBEDDINGS_URL, {
+    const response = await doFetch(`${openRouterBaseUrl()}/embeddings`, {
       method: "POST",
       headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json", "x-title": "AskDocs" },
       body: JSON.stringify({ model, input: texts, encoding_format: "float" }),

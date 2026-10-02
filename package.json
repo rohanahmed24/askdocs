@@ -21,7 +21,8 @@
     "smoke:embeddings": "tsx scripts/smoke-embeddings.mts",
     "ci:local": "bash scripts/ci-local.sh",
     "prepare": "git config core.hooksPath .githooks || true",
-    "eval": "tsx scripts/eval-retrieval.mts"
+    "eval": "tsx scripts/eval-retrieval.mts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "better-auth": "^1.7.7",
@@ -35,6 +36,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",

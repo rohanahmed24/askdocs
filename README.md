@@ -23,7 +23,7 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - pg-boss queue with a separate worker, free OpenRouter embedding models, unpdf for PDF text
 - Chat: vector search in the user's organization, answers from free OpenRouter models with `[n]` citations, streamed
 - Hybrid search (meaning plus keywords for ids and numbers), measured by `pnpm eval`: first-place hits 14 of 14 against 13 of 14 for meaning alone on a 14-question set (`docs/evaluation.md`)
-- Planned: Playwright
+- Playwright end-to-end tests: sign up, upload, indexing by the worker, a cited answer, tenant isolation and delete, with the AI service replaced by a local stand-in (`e2e/`)
 
 ## Run it locally
 
@@ -48,6 +48,7 @@ pnpm dev
 | `pnpm db:generate` | Create a migration from changes in `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm smoke:embeddings` | Try the real embedding model on a small document (2 free requests) |
+| `pnpm test:e2e` | Browser tests of the whole app with a stand-in AI service (builds the app, starts the worker) |
 | `pnpm eval` | Measure retrieval quality on the fixed question set (free after the first run) |
 | `pnpm ci:local` | Run the CI steps on a clean clone and a fresh database (needs Docker) |
 | `pnpm worker` | Run the ingestion worker (needs `OPENROUTER_API_KEY`). Also serves `GET /health` on `PORT` (default 8080) |
@@ -56,7 +57,7 @@ pnpm dev
 
 `.github/workflows/ci.yml` runs lint, typecheck, migrations, tests and build on every push. GitHub Actions is currently blocked for this account (jobs end in 3 seconds with "account is locked due to a billing issue", support ticket open), so the same steps run two other ways:
 
-- `pnpm ci:local` clones the committed code, starts a fresh `pgvector/pgvector:pg17` database in Docker and runs every CI step. It passes for the current commit.
+- `pnpm ci:local` clones the committed code, starts a fresh `pgvector/pgvector:pg17` database in Docker and runs every CI step, including the browser tests. It passes for the current commit.
 - A `pre-push` hook (in `.githooks`, enabled by `pnpm install`) runs `pnpm check` and cancels a push that fails.
 
 ## Hosting
