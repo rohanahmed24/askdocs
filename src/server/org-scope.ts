@@ -3,6 +3,7 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "@/db";
 import { chunks, documents, memberships, messages, queryEmbeddings, type Citation } from "@/db/schema";
 import { releaseStorage } from "./quota";
+import { toTsQuery } from "./search-query";
 
 /**
  * Thrown when a user asks for an organization they do not belong to
@@ -30,6 +31,7 @@ export type PassageHit = {
   filename: string;
   ordinal: number;
   content: string;
+  /** Cosine similarity with the question: 1 means the same direction. */
   similarity: number;
 };
 
@@ -158,6 +160,76 @@ function createScope(db: Db, ctx: { userId: string; orgId: string; role: OrgRole
         return rows
           .map(({ distance: d, ...row }) => ({ ...row, similarity: 1 - Number(d) }))
           .filter((row) => row.similarity >= minSimilarity);
+      });
+    },
+
+    /**
+     * Hybrid search: the passages closest in meaning (vector search) and the
+     * passages containing the question's identifiers and numbers (Postgres
+     * full-text search) are merged with reciprocal rank fusion, so a passage that
+     * ranks well in either list, and best of all in both, comes first. Meaning
+     * finds paraphrases and other languages; words find ids, codes and exact
+     * numbers. A question in plain words has no keyword list (see `toTsQuery`).
+     *
+     * Same isolation as `searchChunks`: both lists are filtered by organization
+     * inside the query. `minSimilarity` applies to the vector similarity of every
+     * returned passage, so a passage that only shares a common word is dropped.
+     */
+    async searchHybrid(
+      queryText: string,
+      queryVector: number[],
+      options: { limit?: number; pool?: number; minSimilarity?: number; keywords?: "ids" | "all" } = {},
+    ): Promise<PassageHit[]> {
+      const limit = options.limit ?? 6;
+      const pool = options.pool ?? 20;
+      const minSimilarity = options.minSimilarity ?? -1; // cosine similarity is never below -1: no filter
+      const literal = `[${queryVector.join(",")}]`;
+      const distance = sql<number>`${chunks.embedding} <=> ${literal}::halfvec`;
+      const tsquery = toTsQuery(queryText, options.keywords ?? "ids");
+      const columns = {
+        chunkId: chunks.id,
+        documentId: chunks.documentId,
+        filename: documents.filename,
+        ordinal: chunks.ordinal,
+        content: chunks.content,
+        distance,
+      };
+      const readyInOrg = and(inOrg(chunks), inOrg(documents, eq(documents.status, "ready")));
+
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL hnsw.iterative_scan = 'relaxed_order'`);
+        await tx.execute(sql`SET LOCAL hnsw.ef_search = 100`);
+
+        const byMeaning = await tx.select(columns).from(chunks).innerJoin(documents, eq(documents.id, chunks.documentId)).where(readyInOrg).orderBy(distance).limit(pool);
+
+        let byWords: typeof byMeaning = [];
+        if (tsquery) {
+          const vector = sql`to_tsvector('simple', translate(${chunks.content}, '-_', '  '))`;
+          const query = sql`to_tsquery('simple', ${tsquery})`;
+          byWords = await tx
+            .select(columns)
+            .from(chunks)
+            .innerJoin(documents, eq(documents.id, chunks.documentId))
+            .where(and(readyInOrg, sql`${vector} @@ ${query}`))
+            .orderBy(sql`ts_rank_cd(${vector}, ${query}) desc`, distance)
+            .limit(pool);
+        }
+
+        const RRF_K = 60;
+        const fused = new Map<string, { row: (typeof byMeaning)[number]; score: number }>();
+        for (const list of [byMeaning, byWords]) {
+          list.forEach((row, index) => {
+            const entry = fused.get(row.chunkId) ?? { row, score: 0 };
+            entry.score += 1 / (RRF_K + index + 1);
+            fused.set(row.chunkId, entry);
+          });
+        }
+
+        return [...fused.values()]
+          .sort((a, b) => b.score - a.score)
+          .map(({ row: { distance: d, ...row } }) => ({ ...row, similarity: 1 - Number(d) }))
+          .filter((row) => row.similarity >= minSimilarity)
+          .slice(0, limit);
       });
     },
 

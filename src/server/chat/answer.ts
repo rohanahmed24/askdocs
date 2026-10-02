@@ -21,6 +21,8 @@ export type AnswerDeps = {
   /** Names the embedding model in the cache key, so a model change never reuses old vectors. */
   embedModel: string;
   chat: ChatStreamer;
+  /** "hybrid" (default) adds keyword search for ids and numbers to the search by meaning; "vector" is meaning alone. */
+  retrieval?: "hybrid" | "vector";
   signal?: AbortSignal;
   now?: () => Date;
 };
@@ -71,7 +73,9 @@ export async function* answerQuestion(deps: AnswerDeps, question: string): Async
     return;
   }
 
-  const passages = toPassages(await scope.searchChunks(queryVector, { limit: PASSAGE_LIMIT, minSimilarity: MIN_SIMILARITY }));
+  const searchOptions = { limit: PASSAGE_LIMIT, minSimilarity: MIN_SIMILARITY };
+  const hits = deps.retrieval === "vector" ? await scope.searchChunks(queryVector, searchOptions) : await scope.searchHybrid(question, queryVector, searchOptions);
+  const passages = toPassages(hits);
   yield { type: "sources", sources: passages };
 
   if (passages.length === 0) {

@@ -1,7 +1,7 @@
 import { DEFAULT_EMBEDDING_MODEL, createOpenRouterEmbedder, type Embedder } from "../embeddings";
 import { createOpenRouterChat, parseChatModels, type ChatStreamer } from "./llm";
 
-export type ChatDeps = { embed: Embedder; embedModel: string; chat: ChatStreamer };
+export type ChatDeps = { embed: Embedder; embedModel: string; chat: ChatStreamer; retrieval: "hybrid" | "vector" };
 
 let deps: ChatDeps | null = null;
 
@@ -17,6 +17,7 @@ export function getChatDeps(): ChatDeps {
       embed: createOpenRouterEmbedder({ apiKey, model: embedModel }),
       embedModel,
       chat: createOpenRouterChat({ apiKey, models: parseChatModels(process.env.OPENROUTER_CHAT_MODELS) }),
+      retrieval: process.env.RETRIEVAL_MODE === "vector" ? "vector" : "hybrid",
     };
   }
   return deps;

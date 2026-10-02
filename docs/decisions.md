@@ -151,3 +151,11 @@ Other choices on that screen: the table layout of the design needs about 900 px 
 8. **Streaming** is newline-separated JSON events (`sources`, `delta`, `done`, `error`) from a route handler; the client reads them with a stream reader and the stop button aborts the request.
 
 Checked in a browser with the real models on 2 Oct 2026: an English question and a Bengali question each got an answer with a citation to the right passage, and an unrelated question got the no-answer sentence.
+
+## 24. Hybrid search for ids and numbers only
+
+Search by meaning (the embedding model) is the main path. Full-text search is added only for questions that contain an identifier or a number (a word with a digit, such as `E-4021` or `SEC-17`), which must all appear in the passage. The two ranked lists are merged with reciprocal rank fusion (k = 60). A question in plain words has no keyword list.
+
+Why: Postgres full-text ranking does not know how rare a word is, so it favours passages that repeat common words. Searching on every word made results worse in the evaluation (`hybrid-all`, 12 of 14 first-place hits against 13 for meaning alone) and broke a cross-language question. Restricting keywords to numbers and identifiers, which are rare and exact, gave 14 of 14. The numbers, the small size of the set and the way the change was chosen are in `docs/evaluation.md`.
+
+The keyword index is a GIN index on `to_tsvector('simple', translate(content, '-_', '  '))`: `simple` keeps words as they are, so it works for Bengali too, and hyphens count as spaces so `E-4021` is found by `4021`. `RETRIEVAL_MODE=vector` switches the chat back to meaning alone.

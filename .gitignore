@@ -42,3 +42,6 @@ next-env.d.ts
 
 # but keep the example file
 !.env.example
+
+# Cached embeddings of the evaluation texts (rebuilt by pnpm eval)
+eval/.embedding-cache.json

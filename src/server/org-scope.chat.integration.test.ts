@@ -173,3 +173,116 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("org scope: search, messages and
     expect(await db.select().from(documents).where(eq(documents.id, doc.id))).toEqual([]);
   });
 });
+
+describe.skipIf(!process.env.TEST_DATABASE_URL)("org scope: hybrid search (database)", () => {
+  const { db, pool } = createTestDb();
+
+  beforeEach(async () => {
+    await db.execute(sql`TRUNCATE TABLE organizations, "user" CASCADE`);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  async function addChunk(orgId: string, documentId: string, ordinal: number, content: string, degrees: number) {
+    await db.insert(chunks).values({ orgId, documentId, ordinal, content, embedding: unit(degrees) });
+  }
+
+  it("puts a passage that contains the question's id first, even when its meaning vector is far", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await addChunk(a.org.id, doc.id, 0, "Quarterly planning and team offsites.", 10); // closest by meaning
+    await addChunk(a.org.id, doc.id, 1, "Error E-4021 means the payment gateway timed out.", 70);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    const byMeaning = await scope.searchChunks(unit(0), { limit: 1 });
+    const hybrid = await scope.searchHybrid("What does error code E-4021 mean?", unit(0), { limit: 1 });
+
+    expect(byMeaning[0].content).toContain("Quarterly");
+    expect(hybrid[0].content).toContain("E-4021");
+  });
+
+  it("finds Bengali words", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await addChunk(a.org.id, doc.id, 0, "অন্য একটি বিষয়।", 10);
+    await addChunk(a.org.id, doc.id, 1, "অফিস সকাল ৯টা থেকে বিকেল ৬টা পর্যন্ত খোলা থাকে।", 70);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    const byWords = await scope.searchHybrid("অফিস কখন খোলে সকাল", unit(0), { limit: 1, keywords: "all" });
+    const byBengaliNumber = await scope.searchHybrid("অফিস ৯টা", unit(0), { limit: 1 });
+
+    expect(byWords[0].content).toContain("সকাল ৯টা");
+    expect(byBengaliNumber[0].content).toContain("সকাল ৯টা");
+  });
+
+  it("leaves a question in plain words to meaning alone by default", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await addChunk(a.org.id, doc.id, 0, "Quarterly planning and team offsites.", 10);
+    await addChunk(a.org.id, doc.id, 1, "The gateway timed out when paying.", 70);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    const plain = await scope.searchHybrid("gateway timed out", unit(0), { limit: 1 });
+    const allWords = await scope.searchHybrid("gateway timed out", unit(0), { limit: 1, keywords: "all" });
+
+    expect(plain[0].content).toContain("Quarterly");
+    expect(allWords[0].content).toContain("gateway");
+  });
+
+  it("never returns another organization's passage, even when it holds the keyword", async () => {
+    const a = await seedOrg(db, 1);
+    const b = await seedOrg(db, 2);
+    const mine = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    const theirs = await seedDocument(db, { orgId: b.org.id, userId: b.userId, status: "ready" });
+    await addChunk(a.org.id, mine.id, 0, "Our own plain passage.", 30);
+    await addChunk(b.org.id, theirs.id, 0, "Secret code ZEBRA-99 of organization B", 0);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    const hits = await scope.searchHybrid("ZEBRA-99", unit(0));
+
+    expect(hits.map((h) => h.content)).toEqual(["Our own plain passage."]);
+  });
+
+  it("skips documents that are not ready", async () => {
+    const a = await seedOrg(db);
+    const ready = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    const failed = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "failed" });
+    await addChunk(a.org.id, ready.id, 0, "Nothing about the topic.", 30);
+    await addChunk(a.org.id, failed.id, 0, "Contains the keyword unicorn.", 5);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    expect((await scope.searchHybrid("unicorn", unit(0), { keywords: "all" })).map((h) => h.content)).toEqual(["Nothing about the topic."]);
+  });
+
+  it("falls back to meaning alone when the question has no searchable word", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await addChunk(a.org.id, doc.id, 0, "close", 10);
+    await addChunk(a.org.id, doc.id, 1, "far", 80);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    const hits = await scope.searchHybrid("what is the?", unit(0), { limit: 2 });
+
+    expect(hits.map((h) => h.content)).toEqual(["close", "far"]);
+  });
+
+  it("drops a passage that only shares a word but is not close in meaning, when a minimum similarity is set", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await addChunk(a.org.id, doc.id, 0, "capital of nothing relevant", 100);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    expect(await scope.searchHybrid("capital", unit(0), { minSimilarity: 0.25, keywords: "all" })).toEqual([]);
+    expect(await scope.searchHybrid("capital", unit(0), { keywords: "all" })).toHaveLength(1);
+  });
+
+  it("returns a passage once, even when both lists find it", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await addChunk(a.org.id, doc.id, 0, "invoice due in thirty days", 5);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+
+    expect(await scope.searchHybrid("invoice due", unit(0), { keywords: "all" })).toHaveLength(1);
+  });
+});

@@ -22,7 +22,8 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - Better Auth (email and password), Zod
 - pg-boss queue with a separate worker, free OpenRouter embedding models, unpdf for PDF text
 - Chat: vector search in the user's organization, answers from free OpenRouter models with `[n]` citations, streamed
-- Planned: evaluation script, hybrid search, Playwright
+- Hybrid search (meaning plus keywords for ids and numbers), measured by `pnpm eval`: first-place hits 14 of 14 against 13 of 14 for meaning alone on a 14-question set (`docs/evaluation.md`)
+- Planned: Playwright
 
 ## Run it locally
 
@@ -47,6 +48,7 @@ pnpm dev
 | `pnpm db:generate` | Create a migration from changes in `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm smoke:embeddings` | Try the real embedding model on a small document (2 free requests) |
+| `pnpm eval` | Measure retrieval quality on the fixed question set (free after the first run) |
 | `pnpm ci:local` | Run the CI steps on a clean clone and a fresh database (needs Docker) |
 | `pnpm worker` | Run the ingestion worker (needs `OPENROUTER_API_KEY`). Also serves `GET /health` on `PORT` (default 8080) |
 

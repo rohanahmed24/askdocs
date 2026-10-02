@@ -1,0 +1,113 @@
+[
+  {
+    "id": "late-fee",
+    "kind": "paraphrase",
+    "question": "How long do I have to pay an invoice before a penalty is added?",
+    "expect": "within thirty days"
+  },
+  {
+    "id": "error-code",
+    "kind": "exact-id",
+    "question": "What does error code E-4021 mean?",
+    "expect": "payment gateway timed out"
+  },
+  {
+    "id": "policy-id",
+    "kind": "exact-id",
+    "question": "What is policy SEC-12 about?",
+    "expect": [
+      "ninety days after an account is closed",
+      "SEC-12 Data retention and deletion of customer files"
+    ]
+  },
+  {
+    "id": "site-down",
+    "kind": "paraphrase",
+    "question": "Do we have to tell customers if the website is down for a long time?",
+    "expect": "notify all customers by email"
+  },
+  {
+    "id": "parental",
+    "kind": "paraphrase",
+    "question": "How many weeks of leave do new parents get?",
+    "expect": "16 weeks of fully paid parental leave"
+  },
+  {
+    "id": "pro-price",
+    "kind": "number",
+    "question": "Which plan costs 29 dollars per user?",
+    "expect": "The Pro plan costs 29 dollars"
+  },
+  {
+    "id": "bn-hours",
+    "kind": "bengali",
+    "question": "অফিস কখন খোলে?",
+    "expect": "সকাল ৯টা থেকে বিকেল ৬টা"
+  },
+  {
+    "id": "bn-to-en",
+    "kind": "cross-language",
+    "question": "ল্যাপটপে কী ধরনের এনক্রিপশন লাগবে?",
+    "expect": "full disk encryption"
+  },
+  {
+    "id": "en-to-bn",
+    "kind": "cross-language",
+    "question": "When is the new feature demo?",
+    "expect": "২০ অক্টোবর"
+  },
+  {
+    "id": "stolen",
+    "kind": "paraphrase",
+    "question": "Who do I contact if my laptop is stolen?",
+    "expect": "security@northwind.example"
+  },
+  {
+    "id": "sku-price",
+    "kind": "exact-id",
+    "question": "How much does item NW-7731 cost?",
+    "expect": "NW-7731 Laptop stand, aluminium, foldable: 45 dollars"
+  },
+  {
+    "id": "sku-name",
+    "kind": "exact-id",
+    "question": "What is NW-3306?",
+    "expect": "NW-3306 External monitor, 32 inch, 4K: 520 dollars"
+  },
+  {
+    "id": "policy-17",
+    "kind": "exact-id",
+    "question": "What does policy SEC-17 say?",
+    "expect": "SEC-17 Handling of customer support recordings"
+  },
+  {
+    "id": "policy-hr34",
+    "kind": "exact-id",
+    "question": "What is HR-34?",
+    "expect": "HR-34 Remote work from another country"
+  },
+  {
+    "id": "off-france",
+    "kind": "unanswerable",
+    "question": "What is the capital of France?",
+    "expect": null
+  },
+  {
+    "id": "off-netflix",
+    "kind": "unanswerable",
+    "question": "How do I reset my Netflix password?",
+    "expect": null
+  },
+  {
+    "id": "off-football",
+    "kind": "unanswerable",
+    "question": "Who won the football world cup in 2018?",
+    "expect": null
+  },
+  {
+    "id": "off-bn",
+    "kind": "unanswerable",
+    "question": "বাংলাদেশের রাজধানী কোথায়?",
+    "expect": null
+  }
+]

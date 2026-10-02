@@ -185,4 +185,41 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("answerQuestion (database)", () 
     expect(sent).toContain("When must I pay?");
     expect(sent).toContain("Due in thirty days."); // the old answer, without its [1]
   });
+
+  it("finds a passage by its id when the question contains one, and leaves plain questions to meaning", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, filename: "runbook.txt", status: "ready" });
+    await db.insert(chunks).values([
+      { orgId: a.org.id, documentId: doc.id, ordinal: 0, content: "Quarterly planning notes.", embedding: unit(20) },
+      { orgId: a.org.id, documentId: doc.id, ordinal: 1, content: "Error E-4021 means the payment gateway timed out.", embedding: unit(60) },
+    ]);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+    const chat = streamOf("The gateway timed out [1].");
+
+    await run({ scope, embed: embedAt(0), embedModel: "m", chat, retrieval: "hybrid" }, "What does error E-4021 mean?");
+    const withId = JSON.stringify(vi.mocked(chat).mock.calls[0][0].messages.at(-1));
+    expect(withId.indexOf("E-4021")).toBeGreaterThan(-1);
+    expect(withId.indexOf("E-4021")).toBeLessThan(withId.indexOf("Quarterly")); // the id match is passage 1
+
+    const plain = streamOf("Quarterly [1].");
+    await run({ scope, embed: embedAt(0), embedModel: "m", chat: plain, retrieval: "hybrid" }, "What are the plans for the quarter?");
+    const withoutId = JSON.stringify(vi.mocked(plain).mock.calls[0][0].messages.at(-1));
+    expect(withoutId.indexOf("Quarterly")).toBeLessThan(withoutId.indexOf("E-4021")); // meaning decides
+  });
+
+  it("can be switched to meaning alone", async () => {
+    const a = await seedOrg(db);
+    const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+    await db.insert(chunks).values([
+      { orgId: a.org.id, documentId: doc.id, ordinal: 0, content: "Quarterly planning notes.", embedding: unit(20) },
+      { orgId: a.org.id, documentId: doc.id, ordinal: 1, content: "Error E-4021 means the payment gateway timed out.", embedding: unit(60) },
+    ]);
+    const scope = await getOrgScope(db, a.userId, a.org.id);
+    const chat = streamOf("x [1].");
+
+    await run({ scope, embed: embedAt(0), embedModel: "m", chat, retrieval: "vector" }, "What does error E-4021 mean?");
+
+    const sent = JSON.stringify(vi.mocked(chat).mock.calls[0][0].messages.at(-1));
+    expect(sent.indexOf("Quarterly")).toBeLessThan(sent.indexOf("E-4021"));
+  });
 });

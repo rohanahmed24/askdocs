@@ -20,7 +20,8 @@
     "worker": "tsx worker/index.ts",
     "smoke:embeddings": "tsx scripts/smoke-embeddings.mts",
     "ci:local": "bash scripts/ci-local.sh",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "eval": "tsx scripts/eval-retrieval.mts"
   },
   "dependencies": {
     "better-auth": "^1.7.7",

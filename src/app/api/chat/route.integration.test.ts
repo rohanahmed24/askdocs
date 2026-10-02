@@ -25,6 +25,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("POST /api/chat (database)", () 
     vi.mocked(getChatDeps).mockReturnValue({
       embed: async (texts) => texts.map(unit0),
       embedModel: "test-model",
+      retrieval: "hybrid",
       chat: async function* () {
         yield "Due in thirty days [1].";
       },

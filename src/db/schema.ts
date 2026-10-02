@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   customType,
@@ -141,6 +142,10 @@ export const chunks = pgTable(
     uniqueIndex("chunks_document_ordinal_uq").on(t.documentId, t.ordinal),
     index("chunks_org_document_idx").on(t.orgId, t.documentId),
     index("chunks_embedding_hnsw_idx").using("hnsw", t.embedding.op("halfvec_cosine_ops")),
+    // Keyword search for hybrid retrieval. `simple` keeps every word as it is, so it works for Bengali as well as
+    // English; hyphens and underscores count as spaces, so "E-4021" is found by "4021". The same expression is
+    // used by `OrgScope.searchHybrid`, which is what lets Postgres use this index.
+    index("chunks_content_fts_idx").using("gin", sql`to_tsvector('simple', translate(${t.content}, '-_', '  '))`),
   ],
 );
 
