@@ -1,29 +1,82 @@
 # AskDocs
 
-Multi-tenant document Q&A. Upload txt, md or pdf files to an organization, then ask questions and get answers with a citation to the exact passage each claim came from.
+Multi-tenant document Q&A. Upload txt, md or pdf files to an organization, then ask questions and get answers with a citation to the exact passage each claim came from. If the documents do not answer the question, it says so instead of guessing.
 
-Work in progress. The full write-up (architecture diagram, trade-offs) lands with the first deploy.
+**Live demo:** https://askdocs-rho.vercel.app. Create an account, upload a few files from [`eval/corpus`](eval/corpus) (made-up company documents, English and Bengali), and ask something like "How long do I have to pay an invoice before a penalty is added?" or "What does error code E-4021 mean?". The first upload after the app has been idle can wait about a minute in `queued`, because the worker runs on a free plan that sleeps (see [Hosting](#hosting)).
+
+Design: [Figma file with phone and desktop screens](https://www.figma.com/design/nkCD0lJe2HNa18pMurSCuM).
+
+## How it works
+
+```mermaid
+flowchart LR
+  B[Browser] -->|upload, ask| W["Next.js app<br/>Vercel"]
+  W -->|"SQL (pooled)"| DB[("Neon Postgres<br/>pgvector, job queue")]
+  W -.->|"wake: GET /health"| K["Worker<br/>Render, sleeps when idle"]
+  K -->|"take job, write chunks"| DB
+  K -->|embed chunks| O["OpenRouter<br/>free models"]
+  W -->|"embed question, stream answer"| O
+  C["Vercel Cron<br/>once a day"] -->|cleanup job| W
+```
+
+**Upload.** The route checks the file, reserves storage on the organization row (`SELECT ... FOR UPDATE`, so two uploads cannot both squeeze under the limit), stores the file in Postgres and queues a job. It does not wait for indexing.
+
+**Index.** The worker is a separate process. It takes the job (pg-boss, stored in the same Postgres), extracts the text (unpdf for PDFs), splits it into overlapping chunks that never break inside a character, embeds them with a free OpenRouter model and saves 2048-dimension `halfvec` vectors under an HNSW index. A job can run twice without duplicating chunks, and failures retry with backoff; a failed document shows a retry button.
+
+**Ask.** The question is embedded (a repeated question reuses the saved vector), the six closest passages of this organization above a similarity of 0.25 are found, and a free chat model answers from those passages only, with `[n]` citations, streamed as it is written. An answer that cites no real passage is replaced by "I could not find that in your documents." When no passage is close enough the model is not called at all. Details: [`docs/decisions.md`](docs/decisions.md) #23.
+
+**Tenant isolation.** Every read and write of tenant data goes through `getOrgScope` ([`src/server/org-scope.ts`](src/server/org-scope.ts)), which first checks membership in the database and then puts `org_id = ...` inside every query, including the vector search. A route cannot forget the filter because it never writes one. A browser test with two organizations checks that one sees and gets nothing of the other's documents, and it was verified by removing the filter on purpose (the test failed).
+
+## Search quality
+
+`pnpm eval` measures retrieval on 8 documents and 14 questions (paraphrases, exact ids, numbers, Bengali, cross-language). First-place hits:
+
+| Method | hit@1 | MRR |
+| --- | --- | --- |
+| Meaning only (embeddings) | 13 / 14 | 0.964 |
+| Meaning plus keywords on every word | 12 / 14 | 0.901 |
+| Meaning plus keywords on ids and numbers only (used) | 14 / 14 | 1.000 |
+
+Keyword search on every word made results worse, so keywords are limited to identifiers and numbers. The set is small and the last change was designed around the failing questions; [`docs/evaluation.md`](docs/evaluation.md) says what the numbers do not show, and how the "found nothing" threshold was chosen.
+
+## Key decisions and trade-offs
+
+The full list, with reasons, is in [`docs/decisions.md`](docs/decisions.md). The ones a reader will ask about:
+
+| Decision | Trade-off |
+| --- | --- |
+| Free hosting and free AI models only (#18, #19, #20, #26) | The worker sleeps after 15 minutes idle and the web app wakes it, so the first document after a pause waits about a minute. Free embedding models allow 50 requests a day, so the app saves question vectors and counts questions per user (20 an hour). |
+| Separate worker process with a Postgres queue (#6, #12, #14) | One more thing to deploy, but uploads return at once, work retries, and a web outage never loses a job. |
+| Files and vectors in Postgres (#11, #21) | One database to run, back up and isolate by `org_id`, at the cost of not scaling to very large files. Uploads are limited to 4 MB because of Vercel's request body limit (#15). |
+| Hybrid search for ids and numbers only (#24) | Measured, not assumed: all-word keyword search lost to meaning alone. |
+| Polling, not streaming, for document status (#22) | A 3 second delay in the list, but it works on serverless without a long-lived connection. |
+| Tests run against a real Postgres, browser tests use a stand-in AI service (#25) | Tests cost no free requests and give the same result every time; they do not judge the quality of real answers (the evaluation and manual checks do). |
+
+## What I would build next
+
+- Invite members and switch between organizations (today one account has one organization, decision #10).
+- A larger evaluation set with real documents, and a check of the answers themselves, not only the search.
+- An always-on worker, which removes the first-upload wait (nothing in the code changes except the wake-up ping).
+- Working GitHub Actions: the workflow exists but the account is blocked by a billing issue (see below).
 
 ## How I used AI
 
 I built this with Claude Code (Anthropic's coding agent), and I want to be exact about who did what.
 
 - **Claude wrote the code, the tests and the docs.** That includes the three pieces that matter most for correctness: the organization scope (`src/server/org-scope.ts`), the storage quota with its row lock (`src/server/quota.ts`) and the text chunker (`src/chunker`). I first planned to write those three by hand, then asked Claude to write them. `docs/decisions.md` #16 records that change.
-- **I set the goal, the scope and the design direction**, and approved each step: a multi-tenant document Q&A app for a full-stack role, the Rohan.A design system for the UI, the order of work (auth, ingestion, then chat), and what to cut.
-- **How the code is checked:** tests run against a real Postgres, and the risky ones were checked by breaking the code on purpose. Removing `FOR UPDATE` from the quota makes the lock test fail. Removing the grapheme check from the chunker makes the emoji and Bengali tests fail. `docs/walkthrough.md` explains why each of the three pieces is built the way it is.
-- **Verified with the real embedding model:** upload text, chunk, embed with a free OpenRouter model, store, and find the right passage for an English and a Bengali question (`pnpm smoke:embeddings`).
-- **Not verified yet:** CI on GitHub (blocked by an account billing issue) and the deployed worker.
+- **I set the goal, the scope and the design direction**, and approved each step: a multi-tenant document Q&A app for a full-stack role, the Rohan.A design system for the UI, the order of work (auth, ingestion, then chat, then deploy), and what to cut.
+- **How the code is checked:** tests run against a real Postgres, and the risky ones were checked by breaking the code on purpose. Removing `FOR UPDATE` from the quota makes the lock test fail. Removing the grapheme check from the chunker makes the emoji and Bengali tests fail. Removing the organization filter from the search makes the isolation test fail. `docs/walkthrough.md` explains why each of the three pieces is built the way it is.
+- **Verified with the real services:** embeddings and chat with free OpenRouter models, in English and Bengali (`pnpm smoke:embeddings`, `pnpm eval`), and the deployed app (sign-up, upload and indexing by the worker on Render, a cited answer, the no-answer sentence and an exact-id question). The first live question failed because two migrations had not been applied to the production database; that is why the deploy steps below say to migrate after every schema change.
+- **Not verified:** CI on GitHub (blocked by an account billing issue; the same steps run with `pnpm ci:local` and a pre-push hook), and the first upload after a long idle period on the live worker.
 
 ## Stack
 
-- Next.js (App Router) and TypeScript
+- Next.js (App Router) and TypeScript, Tailwind
 - Postgres with pgvector, Drizzle ORM
 - Docker Compose for local development, GitHub Actions for CI
 - Better Auth (email and password), Zod
-- pg-boss queue with a separate worker, free OpenRouter embedding models, unpdf for PDF text
-- Chat: vector search in the user's organization, answers from free OpenRouter models with `[n]` citations, streamed
-- Hybrid search (meaning plus keywords for ids and numbers), measured by `pnpm eval`: first-place hits 14 of 14 against 13 of 14 for meaning alone on a 14-question set (`docs/evaluation.md`)
-- Playwright end-to-end tests: sign up, upload, indexing by the worker, a cited answer, tenant isolation and delete, with the AI service replaced by a local stand-in (`e2e/`)
+- pg-boss queue with a separate worker, free OpenRouter embedding and chat models, unpdf for PDF text
+- Vitest (unit and database integration tests) and Playwright (end to end)
 
 ## Run it locally
 
@@ -31,10 +84,11 @@ Requires Node 24, pnpm and Docker.
 
 ```bash
 pnpm install
-cp .env.example .env   # then set BETTER_AUTH_SECRET: openssl rand -base64 32
+cp .env.example .env   # then set BETTER_AUTH_SECRET: openssl rand -base64 32, and OPENROUTER_API_KEY
 pnpm db:up        # Postgres + pgvector on localhost:5433
 pnpm db:migrate   # apply migrations
-pnpm dev
+pnpm dev          # the web app
+pnpm worker       # in a second terminal: indexes uploaded documents
 ```
 
 ## Scripts
@@ -62,7 +116,7 @@ pnpm dev
 
 ## Hosting
 
-Web app on Vercel, Postgres on Neon, worker on a Render free web service. The worker sleeps when idle; the web app pings its `/health` after an upload, while a document waits, and once a day from Vercel Cron. Set `WORKER_URL` and `CRON_SECRET` on the web app (see `.env.example`). Details and trade-offs: `docs/decisions.md` #18 and #19.
+Web app on Vercel, Postgres on Neon, worker on a Render free web service. The worker sleeps when idle; the web app pings its `/health` after an upload, while a document waits, and once a day from Vercel Cron. Details and trade-offs: `docs/decisions.md` #18, #19 and #26.
 
 Deploy steps:
 
@@ -78,6 +132,9 @@ Both hosts need the OpenRouter key: the web app embeds each question, the worker
 - `src/db/schema.ts`: tables, enums, indexes
 - `drizzle/`: generated SQL migrations
 - `worker/`: the ingestion worker (its own process)
-- `src/server/`: upload, ingestion, queue and cleanup logic
+- `src/server/`: upload, ingestion, queue, cleanup and chat logic (`org-scope.ts` is the tenant boundary)
+- `e2e/`: browser tests and the stand-in AI service
+- `eval/`: the evaluation corpus and questions (also good demo files)
 - `docs/decisions.md`: why things are the way they are
+- `docs/evaluation.md`: retrieval numbers and what they do not show
 - `docs/phase-2-contracts.md`: contracts and test lists for org scope, storage quota and the chunker
