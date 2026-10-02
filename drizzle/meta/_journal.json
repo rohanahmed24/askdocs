@@ -36,6 +36,13 @@
       "when": 1790934454900,
       "tag": "0004_embeddings_halfvec_2048",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790938120523,
+      "tag": "0005_query_embeddings",
+      "breakpoints": true
     }
   ]
 }

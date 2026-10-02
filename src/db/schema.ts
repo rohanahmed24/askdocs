@@ -33,11 +33,15 @@ export const memberRole = pgEnum("member_role", ["owner", "member"]);
 export const documentStatus = pgEnum("document_status", ["queued", "processing", "ready", "failed"]);
 export const messageRole = pgEnum("message_role", ["user", "assistant"]);
 
+/** One cited passage of an answer. `text` is a copy of the passage, so it stays readable if the document is deleted. */
 export type Citation = {
+  /** The number the answer uses for it, as in "[2]". */
+  n: number;
   documentId: string;
   chunkId: string;
   filename: string;
   ordinal: number;
+  text: string;
   page?: number;
 };
 
@@ -156,4 +160,23 @@ export const messages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("messages_org_user_created_idx").on(t.orgId, t.userId, t.createdAt)],
+);
+
+/**
+ * Embeddings of questions already asked, so asking the same question again does
+ * not use another request of the free embedding model's small daily allowance.
+ * Per organization, like everything else.
+ */
+export const queryEmbeddings = pgTable(
+  "query_embeddings",
+  {
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    model: text("model").notNull(),
+    textHash: text("text_hash").notNull(),
+    embedding: halfvec("embedding", { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.model, t.textHash] })],
 );

@@ -1,7 +1,7 @@
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "@/db";
-import { documents, memberships } from "@/db/schema";
+import { chunks, documents, memberships, messages, queryEmbeddings, type Citation } from "@/db/schema";
 import { releaseStorage } from "./quota";
 
 /**
@@ -21,7 +21,19 @@ export class OrgAccessError extends Error {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type OrgRole =typeof memberships.$inferSelect.role;
+export type OrgRole = typeof memberships.$inferSelect.role;
+
+/** A passage found by `searchChunks`. `similarity` is 1 minus the cosine distance. */
+export type PassageHit = {
+  chunkId: string;
+  documentId: string;
+  filename: string;
+  ordinal: number;
+  content: string;
+  similarity: number;
+};
+
+export type StoredMessage = { id: string; role: "user" | "assistant"; content: string; citations: Citation[]; createdAt: Date };
 
 /**
  * Proof that `userId` belongs to `orgId`, plus queries that are already limited
@@ -110,6 +122,84 @@ function createScope(db: Db, ctx: { userId: string; orgId: string; role: OrgRole
 
     /** One document of this organization, or null. An id from another organization gives null. */
     getDocument,
+
+    /**
+     * The passages of this organization's `ready` documents closest to a question
+     * vector, best first. Only this organization's chunks can come back: the
+     * filter is part of the query, not applied afterwards.
+     *
+     * The index finds nearest neighbours across all organizations first, so a
+     * small organization could get too few rows back. `iterative_scan` makes
+     * pgvector keep scanning until the limit is met under the filter.
+     */
+    async searchChunks(queryVector: number[], options: { limit?: number; minSimilarity?: number } = {}): Promise<PassageHit[]> {
+      const limit = options.limit ?? 6;
+      const minSimilarity = options.minSimilarity ?? 0;
+      const literal = `[${queryVector.join(",")}]`;
+      const distance = sql<number>`${chunks.embedding} <=> ${literal}::halfvec`;
+
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL hnsw.iterative_scan = 'relaxed_order'`);
+        await tx.execute(sql`SET LOCAL hnsw.ef_search = 100`);
+        const rows = await tx
+          .select({
+            chunkId: chunks.id,
+            documentId: chunks.documentId,
+            filename: documents.filename,
+            ordinal: chunks.ordinal,
+            content: chunks.content,
+            distance,
+          })
+          .from(chunks)
+          .innerJoin(documents, eq(documents.id, chunks.documentId))
+          .where(and(inOrg(chunks), inOrg(documents, eq(documents.status, "ready"))))
+          .orderBy(distance)
+          .limit(limit);
+        return rows
+          .map(({ distance: d, ...row }) => ({ ...row, similarity: 1 - Number(d) }))
+          .filter((row) => row.similarity >= minSimilarity);
+      });
+    },
+
+    /** Saves one chat message of the signed-in user's conversation. */
+    async addMessage(message: { role: "user" | "assistant"; content: string; citations?: Citation[] }) {
+      await db.insert(messages).values({ orgId, userId, role: message.role, content: message.content, citations: message.citations ?? [] });
+    },
+
+    /** The user's latest messages in this organization, oldest first. */
+    async listMessages(limit = 40): Promise<StoredMessage[]> {
+      const rows = await db
+        .select({ id: messages.id, role: messages.role, content: messages.content, citations: messages.citations, createdAt: messages.createdAt })
+        .from(messages)
+        .where(inOrg(messages, eq(messages.userId, userId)))
+        .orderBy(desc(messages.createdAt))
+        .limit(limit);
+      return rows.reverse();
+    },
+
+    /** When the user asked their questions since `since`, oldest first. Used for the hourly question limit. */
+    async questionTimesSince(since: Date): Promise<Date[]> {
+      const rows = await db
+        .select({ createdAt: messages.createdAt })
+        .from(messages)
+        .where(inOrg(messages, eq(messages.userId, userId), eq(messages.role, "user"), gte(messages.createdAt, since)))
+        .orderBy(asc(messages.createdAt));
+      return rows.map((r) => r.createdAt);
+    },
+
+    /** The saved embedding of a question text (identified by its hash), or null. */
+    async getCachedEmbedding(model: string, textHash: string): Promise<number[] | null> {
+      const [row] = await db
+        .select({ embedding: queryEmbeddings.embedding })
+        .from(queryEmbeddings)
+        .where(inOrg(queryEmbeddings, eq(queryEmbeddings.model, model), eq(queryEmbeddings.textHash, textHash)))
+        .limit(1);
+      return row?.embedding ?? null;
+    },
+
+    async cacheEmbedding(model: string, textHash: string, embedding: number[]) {
+      await db.insert(queryEmbeddings).values({ orgId, model, textHash, embedding }).onConflictDoNothing();
+    },
 
     /**
      * Puts a `failed` document back in the queue (status `queued`, error cleared).
