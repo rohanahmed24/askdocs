@@ -10,7 +10,8 @@ Work in progress. The full write-up (architecture diagram, trade-offs, how AI wa
 - Postgres with pgvector, Drizzle ORM
 - Docker Compose for local development, GitHub Actions for CI
 - Better Auth (email and password), Zod
-- Planned: pg-boss worker, Gemini embeddings and chat, Playwright
+- pg-boss queue with a separate worker, Gemini embeddings through the Vercel AI SDK, unpdf for PDF text
+- Planned: chat with citations, Playwright
 
 ## Run it locally
 
@@ -34,9 +35,13 @@ pnpm dev
 | `pnpm db:up` / `pnpm db:down` | Start or stop the local database |
 | `pnpm db:generate` | Create a migration from changes in `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations |
+| `pnpm worker` | Run the ingestion worker (needs `GEMINI_API_KEY`) |
 
 ## Where things are
 
 - `src/db/schema.ts`: tables, enums, indexes
 - `drizzle/`: generated SQL migrations
+- `worker/`: the ingestion worker (its own process)
+- `src/server/`: upload, ingestion, queue and cleanup logic
 - `docs/decisions.md`: why things are the way they are
+- `docs/phase-2-contracts.md`: the three hand-written pieces

@@ -55,3 +55,27 @@ Better Auth stores users, sessions and accounts in Postgres through its Drizzle 
 Sign-up leads to an onboarding step that creates an organization. The organization and the owner membership are inserted in one transaction, so an organization never exists without an owner (a test forces the second insert to fail and checks nothing is left behind). Slugs are made unique with a short random suffix when the name is taken.
 
 The data model already supports many organizations per user. Only the UI is limited, until an organization switcher is built.
+
+## 11. Uploaded files are stored in Postgres
+
+`document_files` holds the bytes (`bytea`), one row per document, with its own `org_id`. The web app and the worker run on different hosts, and this lets them share files with no object storage to set up. It is fine at 10 MB per file and a 50 MB quota per organization. If volumes grow, move the bytes to object storage and keep only a key in this table.
+
+## 12. How ingestion fails and retries
+
+- The web app saves the file and the document (`queued`), then sends a job. If sending fails, the document stays `queued` and the nightly cleanup queues it again.
+- The worker marks the document `processing`, extracts text, chunks it, embeds in batches of 100, and writes all chunks plus the `ready` status in one transaction. Nothing is kept if any step fails.
+- A permanent problem (empty file, unreadable PDF) marks the document `failed` with a message for the user and is not retried.
+- Anything else (for example the embedding API being down) puts the document back to `queued` and lets pg-boss retry: 3 retries, 30 seconds, doubling each time. After the last retry the document is `failed`.
+- Running the same job twice is harmless: a `ready` document is skipped and chunk inserts ignore duplicates.
+
+## 13. Failed documents keep their quota for a week
+
+A failed upload counts against the organization's storage until it is deleted by the user or by the nightly cleanup (7 days). That keeps the quota arithmetic simple: the counter changes only when a document is added or deleted.
+
+## 14. The web app only sends jobs
+
+The web app uses a send-only pg-boss client (no maintenance, no scheduling, no schema changes). The worker owns the schema and creates the queues, so it must have started once before the first upload.
+
+## 15. Upload size on Vercel (decide before deploying)
+
+The upload limit is 10 MB, but Vercel limits a function request body to about 4.5 MB. Before the first deploy, either lower the limit to 4 MB or upload through a different path (for example, direct to the worker host or to object storage with a signed URL).
