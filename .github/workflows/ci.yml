@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: askdocs
+          POSTGRES_PASSWORD: askdocs
+          POSTGRES_DB: askdocs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U askdocs -d askdocs"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://askdocs:askdocs@localhost:5432/askdocs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Migrations apply to a clean database
+        run: pnpm db:migrate
+
+      - name: Build
+        run: pnpm build
