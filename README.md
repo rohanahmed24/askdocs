@@ -1,5 +1,7 @@
 # AskDocs
 
+[![CI](https://github.com/rohanahmed24/askdocs/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanahmed24/askdocs/actions/workflows/ci.yml)
+
 Multi-tenant document Q&A. Upload txt, md or pdf files to an organization, then ask questions and get answers with a citation to the exact passage each claim came from. If the documents do not answer the question, it says so instead of guessing.
 
 **Live demo:** https://askdocs-rho.vercel.app. Create an account, upload a few files from [`eval/corpus`](eval/corpus) (made-up company documents, English and Bengali), and ask something like "How long do I have to pay an invoice before a penalty is added?" or "What does error code E-4021 mean?". The first upload after the app has been idle can wait about a minute in `queued`, because the worker runs on a free plan that sleeps (see [Hosting](#hosting)).
@@ -57,7 +59,7 @@ The full list, with reasons, is in [`docs/decisions.md`](docs/decisions.md). The
 - Invite members and switch between organizations (today one account has one organization, decision #10).
 - A larger evaluation set with real documents, and a check of the answers themselves, not only the search.
 - An always-on worker, which removes the first-upload wait (nothing in the code changes except the wake-up ping).
-- Working GitHub Actions: the workflow exists but the account is blocked by a billing issue (see below).
+- Row-level security in Postgres as a second layer under `getOrgScope`, and an invite code or daily caps on sign-up and AI use (`docs/decisions.md` #26 lists the known risk).
 
 ## How I used AI
 
@@ -67,7 +69,7 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - **I set the goal, the scope and the design direction**, and approved each step: a multi-tenant document Q&A app for a full-stack role, the Rohan.A design system for the UI, the order of work (auth, ingestion, then chat, then deploy), and what to cut.
 - **How the code is checked:** tests run against a real Postgres, and the risky ones were checked by breaking the code on purpose. Removing `FOR UPDATE` from the quota makes the lock test fail. Removing the grapheme check from the chunker makes the emoji and Bengali tests fail. Removing the organization filter from the search makes the isolation test fail. `docs/walkthrough.md` explains why each of the three pieces is built the way it is.
 - **Verified with the real services:** embeddings and chat with free OpenRouter models, in English and Bengali (`pnpm smoke:embeddings`, `pnpm eval`), and the deployed app (sign-up, upload and indexing by the worker on Render, a cited answer, the no-answer sentence and an exact-id question). The first live question failed because two migrations had not been applied to the production database; that is why the deploy steps below say to migrate after every schema change.
-- **Not verified:** CI on GitHub (blocked by an account billing issue; the same steps run with `pnpm ci:local` and a pre-push hook), and the first upload after a long idle period on the live worker.
+- **Not verified:** a full upload after the worker has been idle for a long time. Measured so far: the sleeping worker took 42 seconds to answer `/health`, and an upload while it was awake reached `ready` in about 2 seconds.
 
 ## Stack
 
@@ -109,9 +111,11 @@ pnpm worker       # in a second terminal: indexes uploaded documents
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs lint, typecheck, migrations, tests and build on every push. GitHub Actions is currently blocked for this account (jobs end in 3 seconds with "account is locked due to a billing issue", support ticket open), so the same steps run two other ways:
+`.github/workflows/ci.yml` runs lint, typecheck, migrations, tests, build and the browser tests on every push, against a `pgvector/pgvector:pg17` database. It passes for the current commit.
 
-- `pnpm ci:local` clones the committed code, starts a fresh `pgvector/pgvector:pg17` database in Docker and runs every CI step, including the browser tests. It passes for the current commit.
+Two local checks run the same steps without GitHub:
+
+- `pnpm ci:local` clones the committed code, starts a fresh database in Docker and runs every CI step, including the browser tests.
 - A `pre-push` hook (in `.githooks`, enabled by `pnpm install`) runs `pnpm check` and cancels a push that fails.
 
 ## Hosting
