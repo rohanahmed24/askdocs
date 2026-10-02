@@ -16,8 +16,9 @@ describe("schema invariants", () => {
   it("stores embeddings with the shared dimension constant", () => {
     const embedding = getTableColumns(chunks).embedding as unknown as { dimensions: number };
     expect(embedding.dimensions).toBe(EMBEDDING_DIMENSIONS);
-    // pgvector cannot index more than 2000 dimensions.
-    expect(EMBEDDING_DIMENSIONS).toBeLessThanOrEqual(2000);
+    // pgvector can index a halfvec column up to 4000 dimensions (a plain vector only up to 2000).
+    expect(EMBEDDING_DIMENSIONS).toBeLessThanOrEqual(4000);
+    expect(embedding.constructor.name).toMatch(/HalfVector/);
   });
 
   it("indexes embeddings with HNSW and cosine distance", () => {

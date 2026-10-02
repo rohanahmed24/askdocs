@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { chunks, documents, memberships } from "@/db/schema";
+import { EMBEDDING_DIMENSIONS, chunks, documents, memberships } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { seedDocument, seedOrg } from "@/test/factories";
 import { OrgAccessError, getOrgScope } from "./org-scope";
@@ -97,7 +97,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("org scope (database)", () => {
     const b = await seedOrg(db, 2);
     const docA = await seedDocument(db, { orgId: a.org.id, userId: a.userId });
     const docB = await seedDocument(db, { orgId: b.org.id, userId: b.userId });
-    const vector = Array.from({ length: 768 }, () => 0.1);
+    const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.1);
     await db.insert(chunks).values([
       { orgId: a.org.id, documentId: docA.id, ordinal: 0, content: "a", embedding: vector },
       { orgId: b.org.id, documentId: docB.id, ordinal: 0, content: "b", embedding: vector },

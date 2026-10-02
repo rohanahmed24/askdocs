@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { chunks, documents } from "@/db/schema";
+import { EMBEDDING_DIMENSIONS, chunks, documents } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { fakeEmbed, paragraphChunker, seedDocument, seedOrg } from "@/test/factories";
 import { ingestDocument } from "./ingest";
@@ -34,7 +34,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("ingestDocument (database)", () 
     expect(rows.map((r) => r.content)).toEqual(["First paragraph.", "Second paragraph.", "Third paragraph."]);
     expect(rows.map((r) => r.ordinal)).toEqual([0, 1, 2]);
     expect(rows.every((r) => r.orgId === org.id)).toBe(true);
-    expect(rows[0].embedding).toHaveLength(768);
+    expect(rows[0].embedding).toHaveLength(EMBEDDING_DIMENSIONS);
 
     const [after] = await db.select().from(documents).where(eq(documents.id, doc.id));
     expect(after).toMatchObject({ status: "ready", error: null, chunkCount: 3 });

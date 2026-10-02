@@ -58,8 +58,8 @@ describe("createOpenRouterEmbedder", () => {
   });
 
   it("fails loudly when vectors do not match the database column", async () => {
-    const embed = createOpenRouterEmbedder({ apiKey: "k", fetch: fakeFetch(() => reply(rows(1, 2048))) });
-    await expect(embed(["a"])).rejects.toThrow(/2048-dimensional.*column holds 768/);
+    const embed = createOpenRouterEmbedder({ apiKey: "k", fetch: fakeFetch(() => reply(rows(1, 2))) });
+    await expect(embed(["a"])).rejects.toThrow(new RegExp(`2-dimensional.*column holds ${EMBEDDING_DIMENSIONS}`));
   });
 
   it("stops when OpenRouter reports a charge", async () => {

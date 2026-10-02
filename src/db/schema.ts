@@ -1,6 +1,7 @@
 import {
   bigint,
   customType,
+  halfvec,
   index,
   integer,
   jsonb,
@@ -11,18 +12,19 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  vector,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
 export * from "./auth-schema";
 
 /**
- * Embedding size. pgvector indexes (HNSW, IVFFlat) stop at 2000 dimensions,
- * so the embedding model is asked for 768-dimensional vectors and this value
- * is used for both the model call and the column.
+ * Embedding size. It must equal what the embedding model returns: the free
+ * OpenRouter models cannot shrink their output. `nvidia/nemotron-3-embed-1b:free`
+ * returns 2048 numbers. A plain `vector` column can only be indexed up to 2000
+ * dimensions, so the column is a `halfvec` (16-bit numbers), which pgvector can
+ * index up to 4000. Change this value, the model and a migration together.
  */
-export const EMBEDDING_DIMENSIONS = 768;
+export const EMBEDDING_DIMENSIONS = 2048;
 
 /** Default per-organization upload quota: 50 MB. */
 export const DEFAULT_STORAGE_LIMIT_BYTES = 50 * 1024 * 1024;
@@ -127,14 +129,14 @@ export const chunks = pgTable(
       .references(() => documents.id, { onDelete: "cascade" }),
     ordinal: integer("ordinal").notNull(),
     content: text("content").notNull(),
-    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+    embedding: halfvec("embedding", { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     // One chunk per (document, position): a retried ingestion job cannot insert duplicates.
     uniqueIndex("chunks_document_ordinal_uq").on(t.documentId, t.ordinal),
     index("chunks_org_document_idx").on(t.orgId, t.documentId),
-    index("chunks_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    index("chunks_embedding_hnsw_idx").using("hnsw", t.embedding.op("halfvec_cosine_ops")),
   ],
 );
 
