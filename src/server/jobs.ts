@@ -1,5 +1,5 @@
 import { PgBoss } from "pg-boss";
-import { INGEST_QUEUE, ingestQueueOptions, type IngestJobData } from "./queues";
+import { CLEANUP_QUEUE, INGEST_QUEUE, ingestQueueOptions, type IngestJobData } from "./queues";
 
 // Send-only client for the web app. It does not run maintenance or scheduling
 // and does not touch the schema: the worker (worker/index.ts) owns those and
@@ -22,4 +22,10 @@ function getBoss() {
 export async function enqueueIngestion(documentId: string): Promise<void> {
   const boss = await getBoss();
   await boss.send(INGEST_QUEUE, { documentId } satisfies IngestJobData, ingestQueueOptions);
+}
+
+/** Queue the nightly cleanup. The daily cron route calls this because the worker sleeps and cannot run its own schedule. */
+export async function enqueueCleanup(): Promise<void> {
+  const boss = await getBoss();
+  await boss.send(CLEANUP_QUEUE, {});
 }

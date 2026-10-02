@@ -7,6 +7,7 @@ import { chunkText } from "@/chunker";
 import * as schema from "@/db/schema";
 import { cleanupDocuments } from "@/server/cleanup";
 import { createGeminiEmbedder } from "@/server/embeddings";
+import { startHealthServer } from "@/server/health";
 import { ingestDocument } from "@/server/ingest";
 import {
   CLEANUP_QUEUE,
@@ -26,6 +27,9 @@ async function main() {
   // The worker needs the direct connection: a pooler breaks pg-boss locks.
   const connectionString = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
   if (!connectionString) throw new Error("Set DATABASE_URL or DATABASE_URL_DIRECT");
+
+  // Answer HTTP first: a host that sleeps idle web services starts the worker on a request to /health.
+  const health = await startHealthServer(Number(process.env.PORT ?? 8080));
 
   const pool = new Pool({ connectionString, max: 5 });
   const db = drizzle(pool, { schema });
@@ -51,8 +55,7 @@ async function main() {
     console.log(`ingested ${job.data.documentId} in ${Date.now() - started} ms (attempt ${job.retryCount + 1})`);
   });
 
-  // Every night at 03:00 UTC.
-  await boss.schedule(CLEANUP_QUEUE, "0 3 * * *");
+  // The web app queues the cleanup once a day (Vercel Cron), which also wakes this worker.
   await boss.work(CLEANUP_QUEUE, async () => {
     const enqueue = async (documentId: string) => {
       await boss.send(INGEST_QUEUE, { documentId } satisfies IngestJobData, ingestQueueOptions);
@@ -62,9 +65,13 @@ async function main() {
 
   console.log("worker ready");
 
+  let shuttingDown = false;
   async function shutdown(signal: string) {
+    if (shuttingDown) return; // a second signal must not start a second stop
+    shuttingDown = true;
     console.log(`${signal} received, finishing active jobs`);
     await boss.stop({ graceful: true });
+    health.close();
     await pool.end();
     process.exit(0);
   }
