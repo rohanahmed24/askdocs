@@ -58,7 +58,7 @@ The data model already supports many organizations per user. Only the UI is limi
 
 ## 11. Uploaded files are stored in Postgres
 
-`document_files` holds the bytes (`bytea`), one row per document, with its own `org_id`. The web app and the worker run on different hosts, and this lets them share files with no object storage to set up. It is fine at 10 MB per file and a 50 MB quota per organization. If volumes grow, move the bytes to object storage and keep only a key in this table.
+`document_files` holds the bytes (`bytea`), one row per document, with its own `org_id`. The web app and the worker run on different hosts, and this lets them share files with no object storage to set up. It is fine at 4 MB per file and a 50 MB quota per organization. If volumes grow, move the bytes to object storage and keep only a key in this table.
 
 ## 12. How ingestion fails and retries
 
@@ -76,9 +76,11 @@ A failed upload counts against the organization's storage until it is deleted by
 
 The web app uses a send-only pg-boss client (no maintenance, no scheduling, no schema changes). The worker owns the schema and creates the queues, so it must have started once before the first upload.
 
-## 15. Upload size on Vercel (decide before deploying)
+## 15. Upload limit is 4 MB, because of Vercel
 
-The upload limit is 10 MB, but Vercel limits a function request body to about 4.5 MB. Before the first deploy, either lower the limit to 4 MB or upload through a different path (for example, direct to the worker host or to object storage with a signed URL).
+Vercel rejects a function request body over about 4.5 MB (error 413 `FUNCTION_PAYLOAD_TOO_LARGE`, checked in its docs on 2 Oct 2026), and the upload goes through a route handler. The limit was 10 MB; it is now 4 MB (`MAX_UPLOAD_BYTES`, with the same value in `CLIENT_MAX_UPLOAD_BYTES` and a test that keeps them equal), which leaves room for the multipart envelope. The 50 MB quota per organization is unchanged.
+
+The alternatives were all more work for a demo: sending the file in 4 MB pieces and joining them on the server, uploading straight to the worker host (which has no body limit but no login either), or Vercel Blob with signed uploads (an extra service and token). If real users need larger files, chunked upload is the next step. The client checks the size before sending and says so in a sentence; a 413 from Vercel itself is shown with the same sentence.
 
 ## 16. Who wrote the org scope, quota and chunker
 

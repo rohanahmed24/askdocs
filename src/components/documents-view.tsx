@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import {
   ACCEPTED_EXTENSIONS,
+  CLIENT_MAX_UPLOAD_BYTES,
+  TOO_LARGE_MESSAGE,
   checkFileBeforeUpload,
   fileTypeLabel,
   formatAdded,
@@ -31,7 +33,7 @@ const COLUMNS = "xl:grid-cols-[minmax(0,1fr)_80px_72px_96px_176px_64px]";
 const POLL_MS = 3000;
 
 const steps = [
-  { n: "01", title: "Upload", body: "Add txt, md or pdf files, up to 10 MB each." },
+  { n: "01", title: "Upload", body: `Add txt, md or pdf files, up to ${formatBytes(CLIENT_MAX_UPLOAD_BYTES)} each.` },
   { n: "02", title: "We index it", body: "A background job reads, splits and embeds your file. You can leave the page." },
   { n: "03", title: "Ask", body: "Every answer cites the passage it came from." },
 ];
@@ -114,7 +116,7 @@ export function DocumentsView({ orgName, initialDocuments, storageUsedBytes, sto
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { error?: string } | null;
           const text =
-            body?.error ?? (response.status === 413 ? "Each file can be up to 10 MB. Compress the file or split it." : "The upload failed. Try again.");
+            body?.error ?? (response.status === 413 ? TOO_LARGE_MESSAGE : "The upload failed. Try again.");
           addNotice(`${file.name}: ${text}`);
         }
       } catch {
@@ -217,7 +219,7 @@ export function DocumentsView({ orgName, initialDocuments, storageUsedBytes, sto
             <div className="flex grow flex-col gap-1">
               <p className="text-lg font-medium">{dragging ? "Drop to upload" : "Drop files here to add them"}</p>
               <p className="text-sm text-ink-muted">
-                txt, md and pdf · up to 10 MB each · {formatBytes(storageUsedBytes)} of {formatBytes(storageLimitBytes)} used
+                txt, md and pdf · up to {formatBytes(CLIENT_MAX_UPLOAD_BYTES)} each · {formatBytes(storageUsedBytes)} of {formatBytes(storageLimitBytes)} used
               </p>
             </div>
             <Button variant="outline" onClick={chooseFiles} className="h-11">

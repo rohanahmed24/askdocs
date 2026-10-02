@@ -1,5 +1,6 @@
 // Pieces of the documents screen that do not need React, so they can be tested.
 // This file is imported by client components: it must not import server code.
+import { formatBytes } from "./format";
 
 export type DocumentStatus = "queued" | "processing" | "ready" | "failed";
 
@@ -35,7 +36,10 @@ export function toDocumentDto(row: {
 }
 
 /** Same limit as the server (`MAX_UPLOAD_BYTES` in src/server/extract.ts). A test keeps the two equal. */
-export const CLIENT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const CLIENT_MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+/** The sentence shown when a file is over the limit. */
+export const TOO_LARGE_MESSAGE = `Each file can be up to ${formatBytes(CLIENT_MAX_UPLOAD_BYTES)}. Compress the file or split it.`;
 
 export const ACCEPTED_EXTENSIONS = [".txt", ".md", ".markdown", ".pdf"] as const;
 
@@ -63,7 +67,7 @@ export function checkFileBeforeUpload(file: { name: string; size: number }): str
   const lower = file.name.toLowerCase();
   if (!ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext))) return "Upload a txt, md or pdf file.";
   if (file.size === 0) return "That file is empty.";
-  if (file.size > CLIENT_MAX_UPLOAD_BYTES) return "Each file can be up to 10 MB. Compress the file or split it.";
+  if (file.size > CLIENT_MAX_UPLOAD_BYTES) return TOO_LARGE_MESSAGE;
   return null;
 }
 

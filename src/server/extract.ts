@@ -3,7 +3,11 @@ import { PermanentIngestionError } from "./errors";
 
 export type FileKind = "text" | "markdown" | "pdf";
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/**
+ * Largest upload. Vercel rejects a function request body over about 4.5 MB (413),
+ * so 4 MB leaves room for the multipart envelope. See docs/decisions.md #15.
+ */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 const byExtension: Record<string, FileKind> = {
   ".txt": "text",

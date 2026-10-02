@@ -8,6 +8,7 @@ import { OrgAccessError, getOrgScope } from "@/server/org-scope";
 import { listMemberships } from "@/server/orgs";
 import { reserveStorage } from "@/server/quota";
 import { toDocumentDto } from "@/lib/documents-ui";
+import { formatBytes } from "@/lib/format";
 import { needsWake, wakeWorker } from "@/server/wake";
 
 const statusByReason = { unsupported_type: 415, empty: 400, too_large: 413, quota: 409 } as const;
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: "Attach a file in the `file` field." }, { status: 400 });
   // Check the size before reading the bytes into memory.
   if (file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: "Each file can be up to 10 MB. Compress the file or split it." }, { status: 413 });
+    return NextResponse.json({ error: `Each file can be up to ${formatBytes(MAX_UPLOAD_BYTES)}. Compress the file or split it.` }, { status: 413 });
   }
 
   const result = await createDocument(

@@ -29,7 +29,7 @@ describe("documents screen helpers", () => {
     expect(checkFileBeforeUpload({ name: "a.PDF", size: 100 })).toBeNull();
     expect(checkFileBeforeUpload({ name: "a.docx", size: 100 })).toMatch(/txt, md or pdf/);
     expect(checkFileBeforeUpload({ name: "a.txt", size: 0 })).toMatch(/empty/);
-    expect(checkFileBeforeUpload({ name: "a.txt", size: CLIENT_MAX_UPLOAD_BYTES + 1 })).toMatch(/10 MB/);
+    expect(checkFileBeforeUpload({ name: "a.txt", size: CLIENT_MAX_UPLOAD_BYTES + 1 })).toMatch(/up to 4 MB/);
     expect(checkFileBeforeUpload({ name: "a.txt", size: CLIENT_MAX_UPLOAD_BYTES })).toBeNull();
   });
 

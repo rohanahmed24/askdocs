@@ -60,7 +60,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("createDocument (database)", () 
   it.each([
     ["an unsupported type", "photo.png", encode("x"), "unsupported_type"],
     ["an empty file", "empty.txt", new Uint8Array(), "empty"],
-    ["a file over 10 MB", "big.txt", new Uint8Array(MAX_UPLOAD_BYTES + 1), "too_large"],
+    ["a file over the size limit", "big.txt", new Uint8Array(MAX_UPLOAD_BYTES + 1), "too_large"],
   ] as const)("rejects %s before touching quota", async (_label, filename, data, reason) => {
     const { userId, org } = await seedOrg(db);
     const reserveStorage = vi.fn(reserve);
