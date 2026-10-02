@@ -10,7 +10,7 @@ type User = { name: string; email: string };
 
 const nav = [
   { key: "documents", label: "Documents", href: "/documents", Icon: FileIcon, enabled: true },
-  { key: "chat", label: "Chat", href: "/chat", Icon: ChatIcon, enabled: false },
+  { key: "chat", label: "Chat", href: "/chat", Icon: ChatIcon, enabled: true },
   { key: "members", label: "Members", href: "/members", Icon: UsersIcon, enabled: false },
 ] as const;
 

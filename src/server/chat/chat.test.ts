@@ -114,6 +114,17 @@ describe("chat models", () => {
     expect(() => createOpenRouterChat({ apiKey: "k", models: ["openai/gpt-4o"] })).toThrow(/only free models/);
   });
 
+  it("refuses a list longer than OpenRouter accepts, and the defaults fit", () => {
+    expect(DEFAULT_CHAT_MODELS.length).toBeLessThanOrEqual(3);
+    expect(() => parseChatModels("a:free,b:free,c:free,d:free")).toThrow(/At most 3/);
+    expect(() => createOpenRouterChat({ apiKey: "k", models: ["a:free", "b:free", "c:free", "d:free"] })).toThrow(/At most 3/);
+  });
+
+  it("includes the provider's own message when a request is refused", async () => {
+    const chat = createOpenRouterChat({ apiKey: "k", fetch: async () => new Response(JSON.stringify({ error: { message: "bad parameter" } }), { status: 400 }) });
+    await expect((async () => { for await (const _ of chat({ messages: [{ role: "user", content: "hi" }] })) void _; })()).rejects.toThrow(/\(400\)\. bad parameter/);
+  });
+
   it("refuses to start without an API key", () => {
     expect(() => createOpenRouterChat({ apiKey: undefined })).toThrow(/OPENROUTER_API_KEY/);
   });

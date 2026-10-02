@@ -13,14 +13,23 @@ export const DEFAULT_CHAT_MODELS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
   "google/gemma-4-31b-it:free",
   "qwen/qwen3.8-27b:free",
-  "google/gemma-4-26b-a4b-it:free",
 ];
+
+/** OpenRouter accepts at most this many models in one fallback list (it answers 400 otherwise). */
+export const MAX_FALLBACK_MODELS = 3;
+
+function assertModelList(models: string[]): void {
+  if (models.length > MAX_FALLBACK_MODELS) {
+    throw new Error(`At most ${MAX_FALLBACK_MODELS} chat models can be listed, got ${models.length}.`);
+  }
+  for (const model of models) assertFreeModel(model);
+}
 
 /** Reads `OPENROUTER_CHAT_MODELS` (comma separated). Every model must be a free one. */
 export function parseChatModels(raw: string | undefined): string[] {
   const models = (raw ?? "").split(",").map((m) => m.trim()).filter(Boolean);
   const list = models.length > 0 ? models : DEFAULT_CHAT_MODELS;
-  for (const model of list) assertFreeModel(model);
+  assertModelList(list);
   return list;
 }
 
@@ -56,7 +65,7 @@ type StreamChunk = {
 export function createOpenRouterChat(options: OpenRouterChatOptions): ChatStreamer {
   if (!options.apiKey) throw new Error("OPENROUTER_API_KEY is not set");
   const models = options.models ?? DEFAULT_CHAT_MODELS;
-  for (const model of models) assertFreeModel(model);
+  assertModelList(models);
   const doFetch = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? 90_000;
 
@@ -79,7 +88,7 @@ export function createOpenRouterChat(options: OpenRouterChatOptions): ChatStream
       throw new ChatServiceError("The answer service did not respond. Try again in a moment.", "unavailable");
     });
 
-    if (!response.ok) throw failureFor(response.status);
+    if (!response.ok) throw failureFor(response.status, await errorDetail(response));
     if (!response.body) throw new ChatServiceError("The answer service sent an empty reply. Try again.", "unavailable");
 
     const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -127,6 +136,17 @@ function readLine(line: string): string | typeof DONE | null {
   }
   const text = chunk.choices?.[0]?.delta?.content;
   return typeof text === "string" && text.length > 0 ? text : null;
+}
+
+/** The provider's own error message from a failed response, if it sent one. */
+async function errorDetail(response: Response): Promise<string | undefined> {
+  const text = await response.text().catch(() => "");
+  try {
+    const message = (JSON.parse(text) as { error?: { message?: string } }).error?.message;
+    return message ?? undefined;
+  } catch {
+    return text.slice(0, 160) || undefined;
+  }
 }
 
 function failureFor(status: number, detail?: string): ChatServiceError {

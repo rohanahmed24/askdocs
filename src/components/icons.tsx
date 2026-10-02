@@ -83,3 +83,13 @@ export const RefreshIcon = (p: P) => (
     <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
   </Icon>
 );
+export const SendIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 19V5M5 12l7-7 7 7" />
+  </Icon>
+);
+export const StopIcon = ({ size = 18, className }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+    <rect x="6" y="6" width="12" height="12" rx="1" />
+  </svg>
+);

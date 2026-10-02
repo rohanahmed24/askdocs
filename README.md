@@ -21,7 +21,8 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - Docker Compose for local development, GitHub Actions for CI
 - Better Auth (email and password), Zod
 - pg-boss queue with a separate worker, free OpenRouter embedding models, unpdf for PDF text
-- Planned: chat with citations, Playwright
+- Chat: vector search in the user's organization, answers from free OpenRouter models with `[n]` citations, streamed
+- Planned: evaluation script, hybrid search, Playwright
 
 ## Run it locally
 
