@@ -130,3 +130,9 @@ Nemotron 3 Embed is the only one that places Bengali and English close together,
 Migration `0004` deletes existing chunks and queues `ready` documents again, because vectors of another size cannot be converted. It ran on the local, test and Neon databases, none of which held real data.
 
 End to end check with the real model (`pnpm smoke:embeddings`): an English question finds the English payment-terms passage, a Bengali question finds the Bengali passage first and the English one second, and an unrelated question finds the outage-policy passage.
+
+## 22. The documents screen polls; it does not stream
+
+While any document is `queued` or `processing`, the page asks `GET /api/documents` every 3 seconds (not while the tab is hidden), and stops when everything is `ready` or `failed`. The API route is also what wakes a sleeping worker (#19). A push channel (server-sent events or WebSockets) would need a long-lived connection, which serverless functions on a free plan handle badly, and polling a small list is cheap. When a document finishes, a screen reader announcement says so.
+
+Other choices on that screen: the table layout of the design needs about 900 px of content width, so it is shown from the `xl` breakpoint (1280 px); below that the list is cards, which also match the phone design. Deleting asks for confirmation inline instead of with a browser dialog. Members can delete only their own uploads; owners can delete any (`OrgScope.deleteDocument`). There is no retry button yet: a failed document is deleted and uploaded again.

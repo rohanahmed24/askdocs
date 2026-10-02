@@ -51,3 +51,30 @@ export const AlertIcon = (p: P) => (
     <path d="M12 8v4M12 16h.01" />
   </Icon>
 );
+export const CheckCircleIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <path d="M22 4 12 14.01l-3-3" />
+  </Icon>
+);
+export const ClockIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 6v6l4 2" />
+  </Icon>
+);
+export const LoaderIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+  </Icon>
+);
+export const TrashIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+  </Icon>
+);
+export const CloseIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </Icon>
+);

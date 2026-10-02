@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
 
-type Variant = "primary" | "outline";
+type Variant = "primary" | "outline" | "danger";
 
 const base =
   "inline-flex h-12 items-center justify-center gap-2.5 rounded-[4px] px-5 text-[15px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
@@ -9,6 +9,8 @@ const base =
 const variants: Record<Variant, string> = {
   primary: "bg-gold text-on-gold hover:bg-gold-hover",
   outline: "border border-ink text-ink hover:bg-surface-raised",
+  // For confirming something that cannot be undone. Dark text on the danger color keeps the contrast.
+  danger: "bg-danger text-on-gold hover:bg-danger/90",
 };
 
 function cls(variant: Variant, className?: string) {
