@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { EMBEDDING_DIMENSIONS, chunks, documents, memberships } from "@/db/schema";
+import { EMBEDDING_DIMENSIONS, chunks, documentFiles, documents, memberships, organizations } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { seedDocument, seedOrg } from "@/test/factories";
 import { OrgAccessError, getOrgScope } from "./org-scope";
@@ -109,5 +109,83 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("org scope (database)", () => {
 
     expect(rows.map((r) => r.content)).toEqual(["a"]);
     expect(asking).toEqual([]);
+  });
+
+  describe("deleteDocument", () => {
+    async function orgWithUsedBytes(n: number, used: number) {
+      const seeded = await seedOrg(db, n);
+      await db.update(organizations).set({ storageUsedBytes: used }).where(eq(organizations.id, seeded.org.id));
+      return seeded;
+    }
+    const usedBytes = async (orgId: string) => (await db.select().from(organizations).where(eq(organizations.id, orgId)))[0].storageUsedBytes;
+
+    it("removes the document, its file and its chunks, and releases its size", async () => {
+      const a = await orgWithUsedBytes(1, 1000);
+      const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, data: new Uint8Array(400) });
+      await db.insert(chunks).values({ orgId: a.org.id, documentId: doc.id, ordinal: 0, content: "x", embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.1) });
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+
+      expect(await scope.deleteDocument(doc.id)).toBe(true);
+
+      expect(await db.select().from(documents)).toEqual([]);
+      expect(await db.select().from(documentFiles)).toEqual([]);
+      expect(await db.select().from(chunks)).toEqual([]);
+      expect(await usedBytes(a.org.id)).toBe(600);
+    });
+
+    it("cannot delete a document of another organization, and releases nothing", async () => {
+      const a = await orgWithUsedBytes(1, 500);
+      const b = await orgWithUsedBytes(2, 500);
+      const theirs = await seedDocument(db, { orgId: b.org.id, userId: b.userId, data: new Uint8Array(100) });
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+
+      expect(await scope.deleteDocument(theirs.id)).toBe(false);
+
+      expect(await db.select().from(documents)).toHaveLength(1);
+      expect(await usedBytes(b.org.id)).toBe(500);
+      expect(await usedBytes(a.org.id)).toBe(500);
+    });
+
+    it("returns false for an unknown or malformed id", async () => {
+      const a = await seedOrg(db);
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+      expect(await scope.deleteDocument("00000000-0000-0000-0000-000000000000")).toBe(false);
+      expect(await scope.deleteDocument("nope")).toBe(false);
+    });
+
+    it("lets a member delete their own upload but not someone else's", async () => {
+      const a = await orgWithUsedBytes(1, 300);
+      const member = await seedOrg(db, 2);
+      await db.insert(memberships).values({ orgId: a.org.id, userId: member.userId, role: "member" });
+      const ownerDoc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, data: new Uint8Array(100) });
+      const memberDoc = await seedDocument(db, { orgId: a.org.id, userId: member.userId, data: new Uint8Array(100) });
+      const scope = await getOrgScope(db, member.userId, a.org.id);
+
+      await expect(scope.deleteDocument(ownerDoc.id)).rejects.toMatchObject({ reason: "not_owner" });
+      expect(await scope.deleteDocument(memberDoc.id)).toBe(true);
+      expect(await db.select().from(documents)).toHaveLength(1);
+      expect(await usedBytes(a.org.id)).toBe(200);
+    });
+
+    it("lets an owner delete a document a member uploaded", async () => {
+      const a = await orgWithUsedBytes(1, 300);
+      const member = await seedOrg(db, 2);
+      await db.insert(memberships).values({ orgId: a.org.id, userId: member.userId, role: "member" });
+      const memberDoc = await seedDocument(db, { orgId: a.org.id, userId: member.userId, data: new Uint8Array(100) });
+      const owner = await getOrgScope(db, a.userId, a.org.id);
+
+      expect(await owner.deleteDocument(memberDoc.id)).toBe(true);
+    });
+
+    it("releases the size only once when two deletes race", async () => {
+      const a = await orgWithUsedBytes(1, 500);
+      const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, data: new Uint8Array(200) });
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+
+      const results = await Promise.all([scope.deleteDocument(doc.id), scope.deleteDocument(doc.id)]);
+
+      expect(results.filter(Boolean)).toHaveLength(1);
+      expect(await usedBytes(a.org.id)).toBe(300);
+    });
   });
 });

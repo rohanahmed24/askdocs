@@ -2,6 +2,7 @@ import { and, desc, eq, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "@/db";
 import { documents, memberships } from "@/db/schema";
+import { releaseStorage } from "./quota";
 
 /**
  * Thrown when a user asks for an organization they do not belong to
@@ -70,6 +71,29 @@ function createScope(db: Db, ctx: { userId: string; orgId: string; role: OrgRole
     /** The organization's documents, newest first. Never reads file contents. */
     listDocuments() {
       return db.select().from(documents).where(inOrg(documents)).orderBy(desc(documents.createdAt));
+    },
+
+    /**
+     * Deletes a document of this organization with its file and chunks, and gives its
+     * bytes back to the quota. Owners can delete any document; members only the ones
+     * they uploaded (`OrgAccessError("not_owner")` otherwise). Returns false when the
+     * document does not exist in this organization.
+     */
+    async deleteDocument(documentId: string): Promise<boolean> {
+      if (!UUID.test(documentId)) return false;
+      return db.transaction(async (tx) => {
+        const [doc] = await tx
+          .select({ uploadedBy: documents.uploadedBy, sizeBytes: documents.sizeBytes })
+          .from(documents)
+          .where(inOrg(documents, eq(documents.id, documentId)))
+          .for("update")
+          .limit(1);
+        if (!doc) return false;
+        if (role !== "owner" && doc.uploadedBy !== userId) throw new OrgAccessError("not_owner", orgId);
+        await tx.delete(documents).where(inOrg(documents, eq(documents.id, documentId)));
+        await releaseStorage(tx, orgId, doc.sizeBytes);
+        return true;
+      });
     },
 
     /** One document of this organization, or null. An id from another organization gives null. */

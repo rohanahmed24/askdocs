@@ -4,7 +4,7 @@ import { organizations } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { seedOrg } from "@/test/factories";
 import { QuotaExceededError } from "./contracts";
-import { reserveStorage } from "./quota";
+import { releaseStorage, reserveStorage } from "./quota";
 
 // Runs against a real Postgres. Skipped when TEST_DATABASE_URL is not set.
 describe.skipIf(!process.env.TEST_DATABASE_URL)("reserveStorage (database)", () => {
@@ -130,5 +130,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("reserveStorage (database)", () 
 
   it("fails for an organization that does not exist", async () => {
     await expect(db.transaction((tx) => reserveStorage(tx, "00000000-0000-0000-0000-000000000000", 10))).rejects.toThrow("does not exist");
+  });
+
+  it("releaseStorage gives bytes back, never below zero", async () => {
+    const orgId = await orgWithLimit(1000, 300);
+
+    await db.transaction((tx) => releaseStorage(tx, orgId, 100));
+    expect(await used(orgId)).toBe(200);
+
+    await db.transaction((tx) => releaseStorage(tx, orgId, 5000));
+    expect(await used(orgId)).toBe(0);
+  });
+
+  it("releaseStorage with zero changes nothing and negative sizes are refused", async () => {
+    const orgId = await orgWithLimit(1000, 300);
+
+    await db.transaction((tx) => releaseStorage(tx, orgId, 0));
+    expect(await used(orgId)).toBe(300);
+    await expect(db.transaction((tx) => releaseStorage(tx, orgId, -1))).rejects.toBeInstanceOf(RangeError);
   });
 });

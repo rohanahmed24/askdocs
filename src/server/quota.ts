@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { Tx } from "@/db";
 import { QuotaExceededError, type ReserveStorage } from "./contracts";
 
 type QuotaRow = { storage_limit_bytes: string; storage_used_bytes: string };
@@ -41,3 +42,20 @@ export const reserveStorage: ReserveStorage = async (tx, orgId, bytes) => {
     WHERE id = ${orgId}
   `);
 };
+
+/**
+ * Gives `bytes` back to the organization's quota inside the caller's
+ * transaction, never going below zero. Call it in the same transaction that
+ * deletes the document, so the counter and the documents cannot disagree.
+ */
+export async function releaseStorage(tx: Tx, orgId: string, bytes: number): Promise<void> {
+  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+    throw new RangeError(`Cannot release ${bytes} bytes: expected a whole number of zero or more`);
+  }
+  if (bytes === 0) return;
+  await tx.execute(sql`
+    UPDATE organizations
+    SET storage_used_bytes = GREATEST(0, storage_used_bytes - ${bytes})
+    WHERE id = ${orgId}
+  `);
+}

@@ -7,6 +7,7 @@ import { enqueueIngestion } from "@/server/jobs";
 import { OrgAccessError, getOrgScope } from "@/server/org-scope";
 import { listMemberships } from "@/server/orgs";
 import { reserveStorage } from "@/server/quota";
+import { toDocumentDto } from "@/lib/documents-ui";
 import { needsWake, wakeWorker } from "@/server/wake";
 
 const statusByReason = { unsupported_type: 415, empty: 400, too_large: 413, quota: 409 } as const;
@@ -69,15 +70,5 @@ export async function GET() {
   const rows = await scope.listDocuments();
   if (needsWake(rows)) after(() => wakeWorker());
 
-  return NextResponse.json({
-    documents: rows.map((d) => ({
-      id: d.id,
-      filename: d.filename,
-      status: d.status,
-      error: d.error,
-      chunkCount: d.chunkCount,
-      sizeBytes: d.sizeBytes,
-      createdAt: d.createdAt.toISOString(),
-    })),
-  });
+  return NextResponse.json({ documents: rows.map(toDocumentDto) });
 }
