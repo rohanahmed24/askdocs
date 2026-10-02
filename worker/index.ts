@@ -6,7 +6,7 @@ import { Pool } from "pg";
 import { chunkText } from "@/chunker";
 import * as schema from "@/db/schema";
 import { cleanupDocuments } from "@/server/cleanup";
-import { createGeminiEmbedder } from "@/server/embeddings";
+import { createOpenRouterEmbedder } from "@/server/embeddings";
 import { startHealthServer } from "@/server/health";
 import { ingestDocument } from "@/server/ingest";
 import {
@@ -33,7 +33,7 @@ async function main() {
 
   const pool = new Pool({ connectionString, max: 5 });
   const db = drizzle(pool, { schema });
-  const embed = createGeminiEmbedder({ apiKey: process.env.GEMINI_API_KEY });
+  const embed = createOpenRouterEmbedder({ apiKey: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_EMBEDDING_MODEL });
 
   const boss = new PgBoss(connectionString);
   boss.on("error", (err) => console.error("pg-boss error", err));

@@ -105,3 +105,12 @@ Render has no free always-on background worker, and a free web service sleeps af
 - Pings from one web instance are at least a minute apart.
 
 Trade-offs: the first document after an idle period waits about a minute in `queued`; the 750 free instance hours are shared with every other free service in the Render workspace (checked on 2 Oct 2026: 0 of 750 used this month, the only existing service is an idle n8n, and no card is on file, so Render cannot bill anything); the cleanup depends on Vercel Cron. If the project outgrows this, run the same worker on an always-on instance. Nothing in the code has to change except removing the ping.
+
+## 20. Embeddings come from free OpenRouter models only
+
+The owner's account balance is low, so the app must never spend money. Embeddings go through OpenRouter's `/embeddings` endpoint with a plain `fetch` (no SDK), and replace the earlier plan to use Gemini.
+
+- **Free only, enforced in code.** The model id must end in `:free`; `createOpenRouterEmbedder` refuses anything else when it starts, and also stops if a response reports a cost above zero. The key should also be created with a credit limit of a cent or two on openrouter.ai, as a second guard.
+- **Limits of free models** (OpenRouter docs): 20 requests a minute, and 50 a day on accounts with under 10 credits purchased (1000 a day above that). A balance below zero blocks even free models. One request embeds a whole batch of up to 100 chunks, so ingestion uses few requests, but chat will spend from the same 50: each question needs one embedding call and one chat call, so about 25 questions a day. Plan the evaluation script and demos around that, and cache query embeddings.
+- **Vector size is the model's, not ours.** The free embedding models list no supported parameters, so a `dimensions` setting cannot shrink the vector. `EMBEDDING_DIMENSIONS` (and the `chunks.embedding` column) must equal what the chosen model returns. The embedder checks this on every call. `scripts/probe-embeddings.mts` tries the free models once and prints their sizes and whether English and Bengali sentences of the same meaning end up close. pgvector's HNSW index stops at 2000 dimensions.
+- **Privacy.** OpenRouter says requests to some free models may be retained and used for training. Use demo documents only, never real client files. The README should say so.

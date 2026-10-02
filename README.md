@@ -11,7 +11,7 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - **Claude wrote the code, the tests and the docs.** That includes the three pieces that matter most for correctness: the organization scope (`src/server/org-scope.ts`), the storage quota with its row lock (`src/server/quota.ts`) and the text chunker (`src/chunker`). I first planned to write those three by hand, then asked Claude to write them. `docs/decisions.md` #16 records that change.
 - **I set the goal, the scope and the design direction**, and approved each step: a multi-tenant document Q&A app for a full-stack role, the Rohan.A design system for the UI, the order of work (auth, ingestion, then chat), and what to cut.
 - **How the code is checked:** tests run against a real Postgres, and the risky ones were checked by breaking the code on purpose. Removing `FOR UPDATE` from the quota makes the lock test fail. Removing the grapheme check from the chunker makes the emoji and Bengali tests fail. `docs/walkthrough.md` explains why each of the three pieces is built the way it is.
-- **Not verified yet:** real Gemini embeddings (no API key has been used so far) and CI on GitHub (blocked by an account billing issue).
+- **Not verified yet:** real embeddings (no OpenRouter key has been used so far) and CI on GitHub (blocked by an account billing issue).
 
 ## Stack
 
@@ -19,7 +19,7 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - Postgres with pgvector, Drizzle ORM
 - Docker Compose for local development, GitHub Actions for CI
 - Better Auth (email and password), Zod
-- pg-boss queue with a separate worker, Gemini embeddings through the Vercel AI SDK, unpdf for PDF text
+- pg-boss queue with a separate worker, free OpenRouter embedding models, unpdf for PDF text
 - Planned: chat with citations, Playwright
 
 ## Run it locally
@@ -44,7 +44,7 @@ pnpm dev
 | `pnpm db:up` / `pnpm db:down` | Start or stop the local database |
 | `pnpm db:generate` | Create a migration from changes in `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations |
-| `pnpm worker` | Run the ingestion worker (needs `GEMINI_API_KEY`). Also serves `GET /health` on `PORT` (default 8080) |
+| `pnpm worker` | Run the ingestion worker (needs `OPENROUTER_API_KEY`). Also serves `GET /health` on `PORT` (default 8080) |
 
 ## Hosting
 

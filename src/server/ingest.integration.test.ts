@@ -84,8 +84,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("ingestDocument (database)", () 
 
   it("puts the document back in the queue and rethrows on a temporary failure", async () => {
     const { doc } = await setup();
-    const embed = vi.fn().mockRejectedValue(new Error("Gemini is down"));
-    await expect(ingestDocument(db, { ...deps, embed }, { documentId: doc.id, isLastAttempt: false })).rejects.toThrow("Gemini is down");
+    const embed = vi.fn().mockRejectedValue(new Error("Embedding service is down"));
+    await expect(ingestDocument(db, { ...deps, embed }, { documentId: doc.id, isLastAttempt: false })).rejects.toThrow("Embedding service is down");
 
     const [after] = await db.select().from(documents).where(eq(documents.id, doc.id));
     expect(after.status).toBe("queued");
@@ -94,8 +94,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("ingestDocument (database)", () 
 
   it("marks the document failed on the last attempt and still rethrows", async () => {
     const { doc } = await setup();
-    const embed = vi.fn().mockRejectedValue(new Error("Gemini is down"));
-    await expect(ingestDocument(db, { ...deps, embed }, { documentId: doc.id, isLastAttempt: true })).rejects.toThrow("Gemini is down");
+    const embed = vi.fn().mockRejectedValue(new Error("Embedding service is down"));
+    await expect(ingestDocument(db, { ...deps, embed }, { documentId: doc.id, isLastAttempt: true })).rejects.toThrow("Embedding service is down");
 
     const [after] = await db.select().from(documents).where(eq(documents.id, doc.id));
     expect(after).toMatchObject({ status: "failed", error: "Indexing failed. Try again later." });
