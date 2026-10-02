@@ -9,7 +9,7 @@ Better Auth, pg-boss, the Vercel AI SDK with Gemini, and Playwright come in late
 
 Drizzle keeps the SQL visible. The schema is plain TypeScript, migrations are plain SQL files in `drizzle/`, and queries that matter (the quota lock, vector search) are written as SQL rather than hidden behind an abstraction.
 
-## 2. Embeddings are 768-dimensional
+## 2. Embeddings are 768-dimensional (superseded by #21)
 
 pgvector indexes (HNSW and IVFFlat) support at most 2000 dimensions, and many embedding models default to more than that. The model is asked for 768-dimensional vectors, and `EMBEDDING_DIMENSIONS` in `src/db/schema.ts` is used for both the model call and the column, so the two cannot drift. A schema test enforces the 2000 limit.
 
@@ -114,3 +114,19 @@ The owner's account balance is low, so the app must never spend money. Embedding
 - **Limits of free models** (OpenRouter docs): 20 requests a minute, and 50 a day on accounts with under 10 credits purchased (1000 a day above that). A balance below zero blocks even free models. One request embeds a whole batch of up to 100 chunks, so ingestion uses few requests, but chat will spend from the same 50: each question needs one embedding call and one chat call, so about 25 questions a day. Plan the evaluation script and demos around that, and cache query embeddings.
 - **Vector size is the model's, not ours.** The free embedding models list no supported parameters, so a `dimensions` setting cannot shrink the vector. `EMBEDDING_DIMENSIONS` (and the `chunks.embedding` column) must equal what the chosen model returns. The embedder checks this on every call. `scripts/probe-embeddings.mts` tries the free models once and prints their sizes and whether English and Bengali sentences of the same meaning end up close. pgvector's HNSW index stops at 2000 dimensions.
 - **Privacy.** OpenRouter says requests to some free models may be retained and used for training. Use demo documents only, never real client files. The README should say so.
+
+## 21. Embeddings are 2048-dimensional halfvec, from nemotron-3-embed-1b
+
+Probe results (2 Oct 2026, one request per model, cost 0 each). Cosine similarity of the same sentence in English and Bengali, against an unrelated sentence:
+
+| Free model | Size | EN vs BN, same meaning | EN vs unrelated |
+| --- | --- | --- | --- |
+| `nvidia/nemotron-3-embed-1b:free` | 2048 | 0.717 | 0.069 |
+| `liquid/lfm-2.5-embedding-350m:free` | 1024 | 0.123 | 0.065 |
+| `nvidia/llama-nemotron-embed-vl-1b-v2:free` | 2048 | 0.300 | 0.062 |
+
+Nemotron 3 Embed is the only one that places Bengali and English close together, so it is the default. Its vectors have 2048 numbers, above the 2000 limit of an indexed `vector` column, so `chunks.embedding` is now `halfvec(2048)` (16-bit numbers; pgvector 0.8 indexes halfvec up to 4000 dimensions) with an HNSW `halfvec_cosine_ops` index. Half precision loses a little accuracy, which does not matter for ranking passages. A batch of 100 chunks works in one request (about 3 seconds).
+
+Migration `0004` deletes existing chunks and queues `ready` documents again, because vectors of another size cannot be converted. It ran on the local, test and Neon databases, none of which held real data.
+
+End to end check with the real model (`pnpm smoke:embeddings`): an English question finds the English payment-terms passage, a Bengali question finds the Bengali passage first and the English one second, and an unrelated question finds the outage-policy passage.

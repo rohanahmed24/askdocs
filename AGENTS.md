@@ -7,7 +7,7 @@ Rules for anyone changing this repo, human or AI agent.
 3. Three pieces carry the security and correctness of the app and get extra scrutiny: the org-scope helper (`src/server/org-scope.ts`), the per-organization upload quota (`src/server/quota.ts`, raw SQL with `SELECT ... FOR UPDATE`) and the text chunker (`src/chunker`). Changes to them need tests that fail when the behavior is removed (for the quota lock, a test that holds one transaction open while a second one waits).
 3a. Read tenant tables through the org scope (`getOrgScope`, then `scope.listDocuments()`, `scope.getDocument()` or `scope.inOrg(table, ...)`), never with a hand-written `where`. Writing a row for the signed-in user's own organization (found through `requireOrg`) is fine.
 4. Ingestion runs as a background job in a separate worker process (never inside a Next.js route), with retries, and must be safe to run twice.
-5. Embeddings are 768-dimensional. Use `EMBEDDING_DIMENSIONS` from `src/db/schema.ts`, never a literal.
+5. The embedding size is whatever the free embedding model returns (2048 for `nvidia/nemotron-3-embed-1b:free`), stored in a `halfvec` column. Use `EMBEDDING_DIMENSIONS` from `src/db/schema.ts`, never a literal. Only free OpenRouter models (id ends in `:free`) may be used.
 6. Vector search first. Hybrid search comes after the evaluation script exists.
 7. The package manager is pnpm.
 8. Record non-obvious choices in `docs/decisions.md`.
