@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stops a push when lint, types or tests fail, so a broken commit never reaches GitHub.
+# Needs the database for the integration tests: pnpm db:up
+# Skip once, if you really must: git push --no-verify
+echo "pre-push: running pnpm check ..."
+if ! pnpm check; then
+  echo "pre-push: pnpm check failed, so the push was cancelled."
+  exit 1
+fi

@@ -78,3 +78,8 @@ export const CloseIcon = (p: P) => (
     <path d="M18 6 6 18M6 6l12 12" />
   </Icon>
 );
+export const RefreshIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
+  </Icon>
+);

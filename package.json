@@ -18,7 +18,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "worker": "tsx worker/index.ts",
-    "smoke:embeddings": "tsx scripts/smoke-embeddings.mts"
+    "smoke:embeddings": "tsx scripts/smoke-embeddings.mts",
+    "ci:local": "bash scripts/ci-local.sh",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "better-auth": "^1.7.7",

@@ -46,7 +46,15 @@ pnpm dev
 | `pnpm db:generate` | Create a migration from changes in `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm smoke:embeddings` | Try the real embedding model on a small document (2 free requests) |
+| `pnpm ci:local` | Run the CI steps on a clean clone and a fresh database (needs Docker) |
 | `pnpm worker` | Run the ingestion worker (needs `OPENROUTER_API_KEY`). Also serves `GET /health` on `PORT` (default 8080) |
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs lint, typecheck, migrations, tests and build on every push. GitHub Actions is currently blocked for this account (jobs end in 3 seconds with "account is locked due to a billing issue", support ticket open), so the same steps run two other ways:
+
+- `pnpm ci:local` clones the committed code, starts a fresh `pgvector/pgvector:pg17` database in Docker and runs every CI step. It passes for the current commit.
+- A `pre-push` hook (in `.githooks`, enabled by `pnpm install`) runs `pnpm check` and cancels a push that fails.
 
 ## Hosting
 

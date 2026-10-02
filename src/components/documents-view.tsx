@@ -17,7 +17,7 @@ import {
 } from "@/lib/documents-ui";
 import { formatBytes } from "@/lib/format";
 import { Button } from "./button";
-import { AlertIcon, CheckCircleIcon, ClockIcon, CloseIcon, FileIcon, LoaderIcon, TrashIcon, UploadIcon } from "./icons";
+import { AlertIcon, CheckCircleIcon, ClockIcon, CloseIcon, FileIcon, LoaderIcon, RefreshIcon, TrashIcon, UploadIcon } from "./icons";
 
 type Props = {
   orgName: string;
@@ -29,7 +29,7 @@ type Props = {
 type Notice = { id: number; text: string };
 
 // The table needs about 900 px for its fixed columns. Below the xl breakpoint the list is shown as cards.
-const COLUMNS = "xl:grid-cols-[minmax(0,1fr)_80px_72px_96px_176px_64px]";
+const COLUMNS = "xl:grid-cols-[minmax(0,1fr)_80px_72px_96px_176px_96px]";
 const POLL_MS = 3000;
 
 const steps = [
@@ -139,6 +139,16 @@ export function DocumentsView({ orgName, initialDocuments, storageUsedBytes, sto
     }
     const body = (await response?.json().catch(() => null)) as { error?: string } | null | undefined;
     addNotice(`${doc.filename}: ${body?.error ?? "The document could not be deleted. Try again."}`);
+  }
+
+  async function retry(doc: DocumentDto) {
+    const response = await fetch(`/api/documents/${doc.id}/retry`, { method: "POST" }).catch(() => null);
+    if (response?.status === 202) {
+      setDocs((current) => current.map((d) => (d.id === doc.id ? { ...d, status: "queued", error: null } : d)));
+      return;
+    }
+    const body = (await response?.json().catch(() => null)) as { error?: string } | null | undefined;
+    addNotice(`${doc.filename}: ${body?.error ?? "The document could not be queued again. Try again."}`);
   }
 
   function chooseFiles() {
@@ -285,6 +295,7 @@ export function DocumentsView({ orgName, initialDocuments, storageUsedBytes, sto
                   <div className="text-sm text-ink-muted">{formatAdded(doc.createdAt)}</div>
                   <StatusLabel doc={doc} />
                   <div className="flex justify-end">
+                    {doc.status === "failed" && <RetryButton doc={doc} onClick={() => void retry(doc)} />}
                     <DeleteButton doc={doc} onClick={() => setConfirmingId(doc.id)} />
                   </div>
                 </div>
@@ -323,7 +334,10 @@ export function DocumentsView({ orgName, initialDocuments, storageUsedBytes, sto
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <StatusChip doc={doc} />
-                    <DeleteButton doc={doc} onClick={() => setConfirmingId(doc.id)} />
+                    <div className="flex">
+                      {doc.status === "failed" && <RetryButton doc={doc} onClick={() => void retry(doc)} />}
+                      <DeleteButton doc={doc} onClick={() => setConfirmingId(doc.id)} />
+                    </div>
                   </div>
                 </div>
                 {confirmingId === doc.id && <ConfirmDelete doc={doc} onConfirm={() => void remove(doc)} onCancel={() => setConfirmingId(null)} />}
@@ -406,6 +420,20 @@ function StatusChip({ doc }: { doc: DocumentDto }) {
     >
       {statusLabels[doc.status]}
     </span>
+  );
+}
+
+function RetryButton({ doc, onClick }: { doc: DocumentDto; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={`Try ${doc.filename} again`}
+      title="Try again"
+      onClick={onClick}
+      className="flex size-11 items-center justify-center rounded-[4px] text-ink hover:bg-surface"
+    >
+      <RefreshIcon />
+    </button>
   );
 }
 

@@ -56,6 +56,18 @@ function createScope(db: Db, ctx: { userId: string; orgId: string; role: OrgRole
     return and(eq(table.orgId, orgId), ...conditions) as SQL;
   }
 
+  /** One document of this organization, or null. */
+  async function getDocument(documentId: string) {
+    // A malformed id (for example from a URL) is simply "not found", not a database error.
+    if (!UUID.test(documentId)) return null;
+    const [doc] = await db
+      .select()
+      .from(documents)
+      .where(inOrg(documents, eq(documents.id, documentId)))
+      .limit(1);
+    return doc ?? null;
+  }
+
   return {
     userId,
     orgId,
@@ -97,15 +109,22 @@ function createScope(db: Db, ctx: { userId: string; orgId: string; role: OrgRole
     },
 
     /** One document of this organization, or null. An id from another organization gives null. */
-    async getDocument(documentId: string) {
-      // A malformed id (for example from a URL) is simply "not found", not a database error.
-      if (!UUID.test(documentId)) return null;
-      const [doc] = await db
-        .select()
-        .from(documents)
-        .where(inOrg(documents, eq(documents.id, documentId)))
-        .limit(1);
-      return doc ?? null;
+    getDocument,
+
+    /**
+     * Puts a `failed` document back in the queue (status `queued`, error cleared).
+     * The caller then sends the job. Returns "not_failed" for a document in any other
+     * state and "not_found" for one that is not in this organization.
+     */
+    async retryDocument(documentId: string): Promise<"retried" | "not_found" | "not_failed"> {
+      if (!UUID.test(documentId)) return "not_found";
+      const updated = await db
+        .update(documents)
+        .set({ status: "queued", error: null })
+        .where(inOrg(documents, eq(documents.id, documentId), eq(documents.status, "failed")))
+        .returning({ id: documents.id });
+      if (updated.length > 0) return "retried";
+      return (await getDocument(documentId)) ? "not_failed" : "not_found";
     },
   };
 }

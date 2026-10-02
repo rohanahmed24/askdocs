@@ -188,4 +188,38 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("org scope (database)", () => {
       expect(await usedBytes(a.org.id)).toBe(300);
     });
   });
+
+  describe("retryDocument", () => {
+    it("puts a failed document back in the queue and clears its error", async () => {
+      const a = await seedOrg(db);
+      const doc = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "failed" });
+      await db.update(documents).set({ error: "Embedding service is down" }).where(eq(documents.id, doc.id));
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+
+      expect(await scope.retryDocument(doc.id)).toBe("retried");
+
+      const after = await scope.getDocument(doc.id);
+      expect(after).toMatchObject({ status: "queued", error: null });
+    });
+
+    it("refuses a document that has not failed", async () => {
+      const a = await seedOrg(db);
+      const ready = await seedDocument(db, { orgId: a.org.id, userId: a.userId, status: "ready" });
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+
+      expect(await scope.retryDocument(ready.id)).toBe("not_failed");
+      expect((await scope.getDocument(ready.id))?.status).toBe("ready");
+    });
+
+    it("does not touch another organization's failed document", async () => {
+      const a = await seedOrg(db, 1);
+      const b = await seedOrg(db, 2);
+      const theirs = await seedDocument(db, { orgId: b.org.id, userId: b.userId, status: "failed" });
+      const scope = await getOrgScope(db, a.userId, a.org.id);
+
+      expect(await scope.retryDocument(theirs.id)).toBe("not_found");
+      expect(await scope.retryDocument("nope")).toBe("not_found");
+      expect((await db.select().from(documents).where(eq(documents.id, theirs.id)))[0].status).toBe("failed");
+    });
+  });
 });
