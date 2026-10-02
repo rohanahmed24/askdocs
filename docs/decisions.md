@@ -5,7 +5,7 @@ Short notes on choices that are easy to forget or hard to reverse. Newest at the
 ## 1. Stack
 
 Next.js (App Router, TypeScript), Postgres with pgvector, Drizzle ORM, pnpm.
-Better Auth, pg-boss, the Vercel AI SDK with Gemini, and Playwright come in later phases.
+Better Auth, pg-boss, OpenRouter models (plain `fetch`, see #20; the first plan was the Vercel AI SDK with Gemini) and Playwright came in later phases.
 
 Drizzle keeps the SQL visible. The schema is plain TypeScript, migrations are plain SQL files in `drizzle/`, and queries that matter (the quota lock, vector search) are written as SQL rather than hidden behind an abstraction.
 
@@ -179,3 +179,7 @@ Vercel Hobby runs the web app (region `sin1`, close to Dhaka and to the database
 - `scripts/prepare-deploy-env.sh` builds the variable lists for both dashboards from local files and prints only names. The values are pasted by hand into the dashboards; no tool or script sends them anywhere.
 - Render's Node image has a read-only `/usr/bin`, so `corepack enable` fails there. The build command runs pnpm through `npx -y pnpm@11.19.0` instead.
 - Migrations are run by hand against Neon (`pnpm db:migrate` with the direct address) and are not part of the Vercel build, so a deploy cannot change the database by surprise. The first live chat question failed with `relation "query_embeddings" does not exist` because 0005 and 0006 had not been applied yet; the fix was to run the migration, and the README step now says to repeat it after every schema change.
+- Response headers: `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a permissions policy (`src/lib/security-headers.ts`), on top of the HSTS header Vercel adds. No Content-Security-Policy: Next.js inlines scripts, so a strict policy needs per-request nonces, which is more work than this project needs.
+- Known risk, not fixed: sign-up is open and has no email check, and every account gets its own 50 MB and 20 questions an hour, but all of them share one OpenRouter key (free models allow about 50 requests a day) and one Neon database (0.5 GB, files stored in Postgres). Someone who creates many accounts could use up the daily AI allowance or fill the database. Options if it ever matters: an invite code at sign-up, a global daily cap on uploads and questions, or paid credits. Better Auth's built-in rate limit is kept in memory, so on serverless it limits each instance separately.
+- Render's free service does not get push events from GitHub (the repository is cloned without the GitHub app), so a push does not redeploy the worker. After a change in `worker/` or in code the worker imports, trigger a deploy by hand in the Render dashboard.
+
