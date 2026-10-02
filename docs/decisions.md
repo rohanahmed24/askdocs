@@ -169,3 +169,13 @@ The AI service is `e2e/fake-openrouter.mjs`, a small local server that speaks th
 The tenant isolation test was checked by removing the organization filter from the search on purpose: the test failed, as it should. What these tests do not check is the quality of real answers; the retrieval evaluation (`docs/evaluation.md`) and manual checks with the real models cover that.
 
 The browser is Playwright's Chromium. Locally it is reused if already installed; CI installs it.
+
+## 26. Deployment layout and its limits
+
+Vercel Hobby runs the web app (region `sin1`, close to Dhaka and to the database), Neon runs Postgres, Render's free plan runs the worker. All three are free and none needs a card.
+
+- Vercel limits a request body to 4.5 MB, so uploads are limited to 4 MB (`MAX_UPLOAD_BYTES`), checked in the browser and again on the server.
+- Serverless functions open many short-lived connections, so the web app uses Neon's pooled address and a small pool (`DB_POOL_MAX=3`). The worker and the pg-boss sender use the direct address, because pg-boss needs session-level features that a transaction pooler does not give.
+- `scripts/prepare-deploy-env.sh` builds the variable lists for both dashboards from local files and prints only names. The values are pasted by hand into the dashboards; no tool or script sends them anywhere.
+- Render's Node image has a read-only `/usr/bin`, so `corepack enable` fails there. The build command runs pnpm through `npx -y pnpm@11.19.0` instead.
+

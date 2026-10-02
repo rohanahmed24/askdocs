@@ -64,6 +64,15 @@ pnpm dev
 
 Web app on Vercel, Postgres on Neon, worker on a Render free web service. The worker sleeps when idle; the web app pings its `/health` after an upload, while a document waits, and once a day from Vercel Cron. Set `WORKER_URL` and `CRON_SECRET` on the web app (see `.env.example`). Details and trade-offs: `docs/decisions.md` #18 and #19.
 
+Deploy steps:
+
+1. Neon: create the database, run `pnpm db:migrate` against the direct (unpooled) address.
+2. Render: new web service from this repo, free plan, Singapore. Build command `npx -y pnpm@11.19.0 install --frozen-lockfile --prod=false`, start command `./node_modules/.bin/tsx worker/index.ts`, health check path `/health`, `NODE_VERSION=24`. Environment: `DATABASE_URL_DIRECT`, `OPENROUTER_API_KEY`.
+3. Vercel: import the repo (region `sin1` and the daily cron come from `vercel.json`). Environment: `DATABASE_URL` (Neon pooled address), `DB_POOL_MAX=3`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `OPENROUTER_API_KEY`, `WORKER_URL`, `CRON_SECRET`.
+4. `bash scripts/prepare-deploy-env.sh --web-url <url> --worker-url <url>` writes both lists to gitignored files (`.env.vercel`, `.env.render`) for pasting into the dashboards. Delete them afterwards.
+
+Both hosts need the OpenRouter key: the web app embeds each question, the worker embeds each document. Only `:free` models are used (decision #20).
+
 ## Where things are
 
 - `src/db/schema.ts`: tables, enums, indexes
