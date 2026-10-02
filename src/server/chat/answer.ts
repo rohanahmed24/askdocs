@@ -57,20 +57,22 @@ export async function* answerQuestion(deps: AnswerDeps, question: string): Async
   const history = (await scope.listMessages(4)).map((m) => ({ role: m.role, content: m.content }));
   await scope.addMessage({ role: "user", content: question });
 
-  let queryVector: number[];
-  try {
-    const hash = questionHash(question);
-    const cached = await scope.getCachedEmbedding(embedModel, hash);
-    if (cached) {
-      queryVector = cached;
-    } else {
+  // The saved vectors only save a free request: when reading or writing them fails the question
+  // is still answered, and only a failing embedding service is reported as "busy".
+  const hash = questionHash(question);
+  let queryVector: number[] | null = await scope.getCachedEmbedding(embedModel, hash).catch((err) => {
+    console.error("Could not read the saved question vector", err);
+    return null;
+  });
+  if (!queryVector) {
+    try {
       [queryVector] = await embed([question]);
-      await scope.cacheEmbedding(embedModel, hash, queryVector);
+    } catch (err) {
+      console.error("Could not embed the question", err);
+      yield { type: "error", message: "The search service is busy or has reached its daily limit. Try again in a few minutes.", remaining };
+      return;
     }
-  } catch (err) {
-    console.error("Could not embed the question", err);
-    yield { type: "error", message: "The search service is busy or has reached its daily limit. Try again in a few minutes.", remaining };
-    return;
+    await scope.cacheEmbedding(embedModel, hash, queryVector).catch((err) => console.error("Could not save the question vector", err));
   }
 
   const searchOptions = { limit: PASSAGE_LIMIT, minSimilarity: MIN_SIMILARITY };

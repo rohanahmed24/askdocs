@@ -138,6 +138,22 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)("answerQuestion (database)", () 
     spy.mockRestore();
   });
 
+  it("still answers when the saved question vectors cannot be read or written", async () => {
+    const { scope } = await setup();
+    const broken = {
+      ...scope,
+      getCachedEmbedding: vi.fn(async () => { throw new Error('relation "query_embeddings" does not exist'); }),
+      cacheEmbedding: vi.fn(async () => { throw new Error('relation "query_embeddings" does not exist'); }),
+    };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const events = await run({ scope: broken, embed: embedAt(0), embedModel: "m", chat: streamOf("Due in thirty days [1].") });
+
+    expect((events.at(-1) as Extract<ChatEvent, { type: "done" }>).answer).toBe("Due in thirty days [1].");
+    expect(spy).toHaveBeenCalledWith("Could not read the saved question vector", expect.any(Error));
+    spy.mockRestore();
+  });
+
   it("embeds a repeated question only once, ignoring case and spacing", async () => {
     const { scope } = await setup();
     const embed = embedAt(0);
