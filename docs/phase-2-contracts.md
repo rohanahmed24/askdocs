@@ -1,12 +1,14 @@
-# The three hand-written pieces
+# Org scope, storage quota and the chunker
 
-These are written by the project owner, not generated. The rest of the app is already built around them, so each piece can be written and tested on its own. Placeholders that throw "Not implemented" sit where each piece goes.
+The three pieces the rest of the app depends on. This file is the contract each one was built against, with the test list.
 
-| # | Piece | File | Status |
+The project owner first planned to write them by hand. They then asked Claude (Claude Code) to write them, and Claude did, with the tests below. The owner reviews them; the mutation checks in the test notes show which tests fail when the key behavior is removed.
+
+| # | Piece | File | Tests |
 | --- | --- | --- | --- |
-| 1 | Org-scope helper | `src/server/org-scope.ts` | not started (todo tests in `org-scope.test.ts`) |
-| 2 | Storage quota reservation | `src/server/quota.ts` | placeholder |
-| 3 | Text chunker | `src/chunker/index.ts` | placeholder |
+| 1 | Org-scope helper | `src/server/org-scope.ts` | `org-scope.integration.test.ts` |
+| 2 | Storage quota reservation | `src/server/quota.ts` | `quota.integration.test.ts` |
+| 3 | Text chunker | `src/chunker/index.ts` | `src/chunker/index.test.ts` |
 
 ## 1. Org-scope helper
 
@@ -81,3 +83,9 @@ Tests to write:
 - Multi-byte characters (Bengali, emoji) are not cut in half.
 
 The ingestion worker calls it as `chunkText(text)` and trims and drops empty chunks, so it does not need to do that.
+
+## Notes from the build
+
+- **Org scope:** `getOrgScope(db, userId, orgId)` throws `OrgAccessError` (`not_member` or `not_owner`, map both to 403). It returns `listDocuments`, `getDocument` (null for an id from another organization or a malformed id), `requireOwner`, and `inOrg(table, ...conditions)` for any table with an `orgId` column.
+- **Quota:** the lock test holds one transaction open and checks a second upload waits. A test that only runs two uploads with `Promise.allSettled` passes even without `FOR UPDATE`, because the queries finish too fast to overlap. Removing `FOR UPDATE` makes the lock test fail.
+- **Chunker:** break order is paragraph, sentence (`. ! ? …` and the Bengali danda), then word. A chunk start is moved forward to a word start, so overlap is slightly under the requested value, never over. Cuts never split a grapheme (checked with `Intl.Segmenter`), so emoji and Bengali conjuncts stay whole. `overlap` defaults to 15% of `size`, at most 150. Setting `overlap >= size` throws `RangeError`.

@@ -1,8 +1,8 @@
 import type { Tx } from "@/db";
 
 /**
- * Contracts for the three hand-written pieces (see docs/phase-2-contracts.md).
- * The rest of the code depends on these types, so each piece can be written and
+ * Contracts for the quota and chunker pieces (see docs/phase-2-contracts.md).
+ * The rest of the code depends on these types, so each piece can be changed and
  * tested on its own.
  */
 

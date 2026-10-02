@@ -79,3 +79,11 @@ The web app uses a send-only pg-boss client (no maintenance, no scheduling, no s
 ## 15. Upload size on Vercel (decide before deploying)
 
 The upload limit is 10 MB, but Vercel limits a function request body to about 4.5 MB. Before the first deploy, either lower the limit to 4 MB or upload through a different path (for example, direct to the worker host or to object storage with a signed URL).
+
+## 16. Who wrote the org scope, quota and chunker
+
+The plan was for the project owner to write these three pieces by hand and for Claude only to review them. The owner changed that and asked Claude to write them. They are covered by tests that were checked by breaking the code on purpose (removing `FOR UPDATE`, removing the grapheme check). The README's "How I used AI" section should say so plainly.
+
+## 17. Chunker: split at boundaries, never inside a character
+
+Chunks are about 1000 characters with 150 overlap, split at a paragraph, then a sentence, then a word. A split in the middle of a character (an emoji, or a Bengali consonant with its vowel sign) would store a broken string and embed garbage, so cuts are moved to a grapheme boundary. Sizes are counted in UTF-16 code units, not bytes or tokens: simple, and close enough for an embedding model with a large input window.

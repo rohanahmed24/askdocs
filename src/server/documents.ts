@@ -7,7 +7,7 @@ import { MAX_UPLOAD_BYTES, detectKind, type FileKind } from "./extract";
 export type CreateDocumentInput = { orgId: string; userId: string; filename: string; data: Uint8Array };
 
 export type CreateDocumentDeps = {
-  /** Hand-written piece #2. Called inside the transaction. */
+  /** See `reserveStorage` in quota.ts. Called inside the transaction. */
   reserveStorage: ReserveStorage;
   /** Queues the indexing job. Called after the transaction commits. */
   enqueue: (documentId: string) => Promise<void>;

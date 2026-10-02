@@ -44,4 +44,4 @@ pnpm dev
 - `worker/`: the ingestion worker (its own process)
 - `src/server/`: upload, ingestion, queue and cleanup logic
 - `docs/decisions.md`: why things are the way they are
-- `docs/phase-2-contracts.md`: the three hand-written pieces
+- `docs/phase-2-contracts.md`: contracts and test lists for org scope, storage quota and the chunker

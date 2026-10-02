@@ -4,8 +4,8 @@ Rules for anyone changing this repo, human or AI agent.
 
 1. Work in small commits. One feature at a time, each with tests. Run `pnpm check` (lint, typecheck, test) before committing.
 2. Every tenant query is scoped to the caller's organization. Tables with an `org_id` column must never be queried without it.
-3. Three pieces are written by hand by the project owner and only reviewed by agents: the org-scope helper, the per-organization upload quota (raw SQL with `SELECT ... FOR UPDATE`) and the text chunker. Do not write them. Review them and suggest tests.
-3a. Until the org-scope helper exists, do not add routes or pages that read tenant tables. Writing a row for the signed-in user's own organization (found through `requireOrg`) is fine.
+3. Three pieces carry the security and correctness of the app and get extra scrutiny: the org-scope helper (`src/server/org-scope.ts`), the per-organization upload quota (`src/server/quota.ts`, raw SQL with `SELECT ... FOR UPDATE`) and the text chunker (`src/chunker`). Changes to them need tests that fail when the behavior is removed (for the quota lock, a test that holds one transaction open while a second one waits).
+3a. Read tenant tables through the org scope (`getOrgScope`, then `scope.listDocuments()`, `scope.getDocument()` or `scope.inOrg(table, ...)`), never with a hand-written `where`. Writing a row for the signed-in user's own organization (found through `requireOrg`) is fine.
 4. Ingestion runs as a background job in a separate worker process (never inside a Next.js route), with retries, and must be safe to run twice.
 5. Embeddings are 768-dimensional. Use `EMBEDDING_DIMENSIONS` from `src/db/schema.ts`, never a literal.
 6. Vector search first. Hybrid search comes after the evaluation script exists.
