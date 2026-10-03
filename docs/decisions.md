@@ -98,7 +98,7 @@ Chunks are about 1000 characters with 150 overlap, split at a paragraph, then a 
 
 ## 19. The worker sleeps and the web app wakes it
 
-Render has no free always-on background worker, and a free web service sleeps after 15 minutes without inbound traffic and takes about a minute to start. Instead of paying, the worker is a web service that also runs the queue consumer, and the web app wakes it:
+Render has no free always-on background worker, and a free web service sleeps after 15 minutes without inbound traffic and takes 20 to 40 seconds to answer a request after sleeping. Instead of paying, the worker is a web service that also runs the queue consumer, and the web app wakes it:
 
 - The worker answers `GET /health` (`src/server/health.ts`). A request to it starts a sleeping host.
 - After an upload, the upload route pings the worker (`after(() => wakeWorker())`). Jobs are stored in Postgres, so nothing is lost while the worker starts; it takes the job when it is up.
@@ -106,7 +106,7 @@ Render has no free always-on background worker, and a free web service sleeps af
 - Vercel Hobby only allows a cron once a day, so one daily cron (`/api/cron/daily`, secured with `CRON_SECRET`) queues the nightly cleanup and wakes the worker. The worker no longer has its own `boss.schedule`, because a sleeping process cannot run one.
 - Pings from one web instance are at least a minute apart.
 
-Trade-offs: the first document after an idle period waits about a minute in `queued`; the 750 free instance hours are shared with every other free service in the Render workspace (checked on 2 Oct 2026: 0 of 750 used this month, the only existing service is an idle n8n, and no card is on file, so Render cannot bill anything); the cleanup depends on Vercel Cron. If the project outgrows this, run the same worker on an always-on instance. Nothing in the code has to change except removing the ping.
+Trade-offs: the first document after an idle period waits in `queued` for about 2.5 minutes (measured on 3 Oct 2026: upload after 17 idle minutes, `ready` after about 150 seconds, longer than the wake-up alone; the extra time was not broken down); the 750 free instance hours are shared with every other free service in the Render workspace (checked on 2 Oct 2026: 0 of 750 used this month, the only existing service is an idle n8n, and no card is on file, so Render cannot bill anything); the cleanup depends on Vercel Cron. If the project outgrows this, run the same worker on an always-on instance. Nothing in the code has to change except removing the ping.
 
 ## 20. Embeddings come from free OpenRouter models only
 

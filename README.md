@@ -4,7 +4,7 @@
 
 Multi-tenant document Q&A. Upload txt, md or pdf files to an organization, then ask questions and get answers with a citation to the exact passage each claim came from. If the documents do not answer the question, it says so instead of guessing.
 
-**Live demo:** https://askdocs-rho.vercel.app. Create an account, upload a few files from [`eval/corpus`](eval/corpus) (made-up company documents, English and Bengali), and ask something like "How long do I have to pay an invoice before a penalty is added?" or "What does error code E-4021 mean?". The first upload after the app has been idle can wait about a minute in `queued`, because the worker runs on a free plan that sleeps (see [Hosting](#hosting)).
+**Live demo:** https://askdocs-rho.vercel.app. Create an account, upload a few files from [`eval/corpus`](eval/corpus) (made-up company documents, English and Bengali), and ask something like "How long do I have to pay an invoice before a penalty is added?" or "What does error code E-4021 mean?". The first upload after the app has been idle can wait two to three minutes in `queued`, because the worker runs on a free plan that sleeps (see [Hosting](#hosting)).
 
 Design: [Figma file with phone and desktop screens](https://www.figma.com/design/nkCD0lJe2HNa18pMurSCuM).
 
@@ -47,7 +47,7 @@ The full list, with reasons, is in [`docs/decisions.md`](docs/decisions.md). The
 
 | Decision | Trade-off |
 | --- | --- |
-| Free hosting and free AI models only (#18, #19, #20, #26) | The worker sleeps after 15 minutes idle and the web app wakes it, so the first document after a pause waits about a minute. Free embedding models allow 50 requests a day, so the app saves question vectors and counts questions per user (20 an hour). |
+| Free hosting and free AI models only (#18, #19, #20, #26) | The worker sleeps after 15 minutes idle and the web app wakes it, so the first document after a pause waits two to three minutes. Free embedding models allow 50 requests a day, so the app saves question vectors and counts questions per user (20 an hour). |
 | Separate worker process with a Postgres queue (#6, #12, #14) | One more thing to deploy, but uploads return at once, work retries, and a web outage never loses a job. |
 | Files and vectors in Postgres (#11, #21) | One database to run, back up and isolate by `org_id`, at the cost of not scaling to very large files. Uploads are limited to 4 MB because of Vercel's request body limit (#15). |
 | Hybrid search for ids and numbers only (#24) | Measured, not assumed: all-word keyword search lost to meaning alone. |
@@ -69,7 +69,7 @@ I built this with Claude Code (Anthropic's coding agent), and I want to be exact
 - **I set the goal, the scope and the design direction**, and approved each step: a multi-tenant document Q&A app for a full-stack role, the Rohan.A design system for the UI, the order of work (auth, ingestion, then chat, then deploy), and what to cut.
 - **How the code is checked:** tests run against a real Postgres, and the risky ones were checked by breaking the code on purpose. Removing `FOR UPDATE` from the quota makes the lock test fail. Removing the grapheme check from the chunker makes the emoji and Bengali tests fail. Removing the organization filter from the search makes the isolation test fail. `docs/walkthrough.md` explains why each of the three pieces is built the way it is.
 - **Verified with the real services:** embeddings and chat with free OpenRouter models, in English and Bengali (`pnpm smoke:embeddings`, `pnpm eval`), and the deployed app (sign-up, upload and indexing by the worker on Render, a cited answer, the no-answer sentence and an exact-id question). The first live question failed because two migrations had not been applied to the production database; that is why the deploy steps below say to migrate after every schema change.
-- **Not verified:** a full upload after the worker has been idle for a long time. Measured so far: the sleeping worker took 42 seconds to answer `/health`, and an upload while it was awake reached `ready` in about 2 seconds.
+- **Measured on the free hosting:** a worker that had been idle for 17 minutes took 22 to 42 seconds to answer `/health`, and a full upload in that state (a 1 KB file through the live site) took about 150 seconds to reach `ready`. An upload while the worker is awake reaches `ready` in about 2 seconds.
 
 ## Stack
 
