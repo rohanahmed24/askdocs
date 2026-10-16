@@ -143,3 +143,11 @@ Both hosts need the OpenRouter key: the web app embeds each question, the worker
 - `docs/decisions.md`: why things are the way they are
 - `docs/evaluation.md`: retrieval numbers and what they do not show
 - `docs/phase-2-contracts.md`: contracts and test lists for org scope, storage quota and the chunker
+
+## Password recovery
+
+Open `/forgot-password` (linked from Sign in). The email contains a one-use link valid for 30 minutes. Resetting signs out previous sessions; sign in again with the new password.
+
+Set `RESEND_API_KEY` to a sending-only Resend key and `AUTH_EMAIL_FROM` to a sender on a verified domain, for example `AskDocs <no-reply@rohanahmed.net>`. Set `BETTER_AUTH_URL` to the public app origin. Add these in the Vercel production environment and redeploy; do not paste keys into chat or commit them. Resend quotas apply. No migration or worker change is needed.
+
+Verify delivery with an account whose inbox you control. Request a link, check the inbox/spam folder, and choose the password yourself. Unknown emails get the same confirmation. Missing or expired links allow a new request. Generic delivery failures appear in deployment logs without secrets.

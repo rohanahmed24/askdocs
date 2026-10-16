@@ -76,6 +76,9 @@ export function AuthForm({ mode }: { mode: keyof typeof copy }) {
           minLength={8}
         />
         {mode === "sign-up" && <p className="-mt-3 text-sm text-ink-muted">At least 8 characters.</p>}
+        {mode === "sign-in" && (
+          <Link href="/forgot-password" className="text-sm underline underline-offset-4">Forgot password?</Link>
+        )}
         <FormError message={error} />
         <Button type="submit" disabled={pending}>
           {pending ? "One moment…" : t.submit}
