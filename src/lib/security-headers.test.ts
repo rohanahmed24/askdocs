@@ -11,6 +11,11 @@ describe("security headers", () => {
 
   it("are applied to every route by the Next.js config", async () => {
     const rules = await nextConfig.headers?.();
-    expect(rules).toEqual([{ source: "/:path*", headers: securityHeaders }]);
+    expect(rules).toEqual(expect.arrayContaining([{ source: "/:path*", headers: securityHeaders }]));
+    const reset = rules?.find((rule) => rule.source === "/reset-password");
+    expect(reset?.headers).toEqual(expect.arrayContaining([
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Cache-Control", value: "no-store" },
+    ]));
   });
 });
