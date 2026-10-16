@@ -184,3 +184,11 @@ Vercel Hobby runs the web app (region `sin1`, close to Dhaka and to the database
 - Render's free service does not get push events from GitHub (the repository is cloned without the GitHub app), so a push does not redeploy the worker. After a change in `worker/` or in code the worker imports, trigger a deploy by hand in the Render dashboard.
 
 - Dependency advisories (`pnpm audit`): the old `esbuild` that `drizzle-kit` pulls in through `@esbuild-kit` is forced to `^0.25.0` with a pnpm override in `pnpm-workspace.yaml`; migrations and generation were re-checked after the change. One high advisory remains (`braces`, a denial of service on deeply nested glob patterns, reached only through `eslint-config-next` at lint time). npm has no patched `braces` release yet (latest is 3.0.3), so nothing can be upgraded, and it does not ship in the production build.
+
+## 27. Password recovery
+
+The sign-in page links to /forgot-password. Better Auth generates, stores, validates and consumes reset tokens; /reset-password accepts the token returned by its callback. Links expire after 30 minutes and successful reset revokes existing sessions. Existing and unknown email requests show the same confirmation. Callback origins remain checked by Better Auth. Reset pages use no-referrer and no-store, and remove the token from the address bar on success.
+
+Resend delivers plain-text recovery email from AUTH_EMAIL_FROM using RESEND_API_KEY. Both are server-only settings. Next.js after keeps delivery alive after the response without exposing account existence through provider latency. Provider failures produce a generic server log, without recipient, token, link or response body. The UI confirmation describes a request, not guaranteed email delivery. Configure and verify delivery before rollout. No passwords, recovery tokens or production keys belong in the repo.
+
+The existing per-instance Better Auth rate limiter remains in place; it is not a distributed abuse limit on serverless. No new database migration or worker deployment is required. Tests exercise framework recovery with an in-memory auth database: unknown accounts, token replay and expiry, password length, old-password rejection, session revocation and untrusted redirect rejection. Email tests mock network delivery; real provider delivery requires a separate deployment check.
